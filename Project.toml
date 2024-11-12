@@ -1,0 +1,16 @@
+name = "MembraneElectrostatics"
+uuid = "c2ac3933-6c5f-4d30-b17d-1f04dba38953"
+authors = ["Jarvist Moore Frost <jarvist@gmail.com> and contributors"]
+version = "1.0.0-DEV"
+
+[deps]
+Gnuplot = "dc211083-a33a-5b79-959f-2ff34033469d"
+
+[compat]
+julia = "1.10"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
