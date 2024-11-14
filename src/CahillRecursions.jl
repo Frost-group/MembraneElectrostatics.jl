@@ -22,74 +22,40 @@ const ϵ_wl = (ϵ_w + ϵ_l)/2
 const ϵ_cl = (ϵ_c + ϵ_l)/2
 
 # Main potential functions
-# Nomenclature:
+# Cahill's Nomenclature:
 #   V_   - potential
 #     w  - charge is in (w)ater, (l)ipid, or (c)ytosol
 #     w  - evaluating in (w)ater, (l)ipid, or (c)ytosol
+# We now achieve this by dispatching on the region types.
 """
-    V_ww(z; ρ=sqrt(0.707nm^2+0.707nm^2), t=5nm, h=1nm)
+    V(z, charge::T, eval::T; ρ, t, h)
 
-Calculate the potential in water according to Equation 9 from Cahill (2012).
-"""
-function summand9(n, z, ρ, t=5nm, h=1nm)
-    p*p′^(n-1)/(√(ρ^2 + (z + 2n*t + h)^2))
-end
-function V_ww(z; ρ=sqrt(0.707nm^2+0.707nm^2), t=5nm, h=1nm)
-    q/(4π*ϵ_w) * (
-        1/√(ρ^2+(z-h)^2) 
-        + p/√(ρ^2+(z+h)^2)
-        - p′*(1-p^2) * sum(summand9(n,z,ρ,t,h) for n in 1:1000)
-    )
-end
-
-"""
-    V_wl(z; ρ=sqrt(0.707nm^2+0.707nm^2), t=5nm, h=1nm)
-
-Calculate the potential in the lipid bilayer according to Equation 10 from Cahill (2012).
-"""
-function summand10(n, z, ρ, t=5nm, h=1nm)
-    (p*p′)^n * (1/√(ρ^2 + (z - 2n*t - h)^2) - p′/√(ρ^2 + (z + 2*(n+1)*t + h)^2))
-end
-function V_wl(z; ρ=sqrt(0.707nm^2+0.707nm^2), t=5nm, h=1nm)
-    q/(4π*ϵ_wl) * sum(summand10(n,z,ρ,t,h) for n in 0:1000)
-end
-
-"""
-    V_wc(z; ρ=sqrt(0.707nm^2+0.707nm^2), t=5nm, h=1nm)
-
-Calculate the potential in the cytosol according to Equation 11 from Cahill (2012).
-"""
-function summand11(n, z, ρ, t=5nm, h=1nm)
-    (p*p′)^n / √(ρ^2 + (z - 2n*t - h)^2)
-end
-function V_wc(z; ρ=sqrt(0.707nm^2+0.707nm^2), t=5nm, h=1nm)
-    q*ϵ_l/(4π*ϵ_wl*ϵ_cl) * sum(summand11(n,z,ρ,t,h) for n in 0:1000)
-end
-
-
-
-"""
-    V(z, charge::T, eval::T; ρ, t, h) where {T,U}
-
-Calculate potential for charge in region T, evaluating in region U.
+Calculate potential for charge in region 'charge', evaluating in region 'eval'.
 """
 function V(z, charge::WaterRegion, eval::WaterRegion; 
           ρ=sqrt(0.707nm^2+0.707nm^2), t=5nm, h=1nm)
     q/(4π*ϵ_w) * (
         1/√(ρ^2+(z-h)^2) 
         + p/√(ρ^2+(z+h)^2)
-        - p′*(1-p^2) * sum(summand9(n,z,ρ,t,h) for n in 1:1000)
-    )
+        - p′*(1-p^2) * 
+        sum( (p*p′^(n-1)/(√(ρ^2 + (z + 2n*t + h)^2))) 
+            for n in 1:1000) )
 end
 
 function V(z, charge::WaterRegion, eval::LipidRegion; 
           ρ=sqrt(0.707nm^2+0.707nm^2), t=5nm, h=1nm)
-    q/(4π*ϵ_wl) * sum(summand10(n,z,ρ,t,h) for n in 0:1000)
+    q/(4π*ϵ_wl) * 
+    sum(
+        ((p*p′)^n * (1/√(ρ^2 + (z - 2n*t - h)^2) 
+          - p′/√(ρ^2 + (z + 2*(n+1)*t + h)^2)))
+         for n in 0:1000)
 end
 
-function V(z, charge::WaterRegion, eval::CytosolRegion; 
-          ρ=sqrt(0.707nm^2+0.707nm^2), t=5nm, h=1nm)
-    q*ϵ_l/(4π*ϵ_wl*ϵ_cl) * sum(summand11(n,z,ρ,t,h) for n in 0:1000)
+function V(z, charge::WaterRegion, eval::CytosolRegion; ρ=sqrt(0.707nm^2+0.707nm^2), t=5nm, h=1nm)
+    q*ϵ_l/(4π*ϵ_wl*ϵ_cl) * 
+    sum(
+        ((p*p′)^n / √(ρ^2 + (z - 2n*t - h)^2)) 
+            for n in 0:1000)
 end
 
 # Add methods for charge in Lipid and Cytosol...

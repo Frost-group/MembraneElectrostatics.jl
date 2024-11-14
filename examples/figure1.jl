@@ -27,7 +27,7 @@ Vs = [V(z, t=t, h=h) for z in Zs]
 @gp :- Zs Vs "w l"
 
 # Calculate potentials
-for h in -12nm:6nm:6nm
+for h in 1nm:1nm:10nm
     VCs = [V(z, t=t, h=h) for z in Zs]
     @gp :- Zs VCs "w l title 'h=$(h/nm) nm'"
 end
