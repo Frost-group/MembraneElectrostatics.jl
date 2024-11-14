@@ -23,12 +23,13 @@ const ϵ_cl = (ϵ_c + ϵ_l)/2
 
 # Main potential functions
 # Cahill's Nomenclature:
-#   V_   - potential
-#     w  - charge is in (w)ater, (l)ipid, or (c)ytosol
-#     w  - evaluating in (w)ater, (l)ipid, or (c)ytosol
+#   V     - potential
+#    ^w   - charge is in (w)ater, (l)ipid, or (c)ytosol
+#     _w  - evaluating in (w)ater, (l)ipid, or (c)ytosol
 # We now achieve this by dispatching on the region types.
 
 # Charge in water
+# V^w_w, Eqn 9 in Cahill2012
 function V(z, charge::WaterRegion, eval::WaterRegion; ρ, t, h, NMAX=1000)
     q/(4π*ϵ_w) * (
         1/√(ρ^2+(z-h)^2) 
@@ -38,6 +39,7 @@ function V(z, charge::WaterRegion, eval::WaterRegion; ρ, t, h, NMAX=1000)
             for n in 1:NMAX) )
 end
 
+# V_^w_l, Eqn 10 in Cahill2012
 function V(z, charge::WaterRegion, eval::LipidRegion; ρ, t, h, NMAX=1000)
     q/(4π*ϵ_wl) * 
     sum(
@@ -46,6 +48,7 @@ function V(z, charge::WaterRegion, eval::LipidRegion; ρ, t, h, NMAX=1000)
          for n in 0:NMAX)
 end
 
+# V_^w_c, Eqn 11 in Cahill2012
 function V(z, charge::WaterRegion, eval::CytosolRegion; ρ, t, h, NMAX=1000)
     q*ϵ_l/(4π*ϵ_wl*ϵ_cl) * 
     sum(
@@ -54,6 +57,7 @@ function V(z, charge::WaterRegion, eval::CytosolRegion; ρ, t, h, NMAX=1000)
 end
 
 # Charge in lipid
+# V_^l_w, Eqn 15 in Cahill2012
 function V(z, charge::LipidRegion, eval::WaterRegion; ρ, t, h, NMAX=1000)
     q/(4π*ϵ_wl) * (
         # TODO: Implement equation for charge in lipid, evaluating in water
@@ -61,6 +65,7 @@ function V(z, charge::LipidRegion, eval::WaterRegion; ρ, t, h, NMAX=1000)
     )
 end
 
+# V_^l_l, Eqn 16 in Cahill2012
 function V(z, charge::LipidRegion, eval::LipidRegion; ρ, t, h, NMAX=1000)
     q/(4π*ϵ_l) * (
         # TODO: Implement equation for charge in lipid, evaluating in lipid
@@ -68,6 +73,7 @@ function V(z, charge::LipidRegion, eval::LipidRegion; ρ, t, h, NMAX=1000)
     )
 end
 
+# V_^l_c, Eqn 17 in Cahill2012
 function V(z, charge::LipidRegion, eval::CytosolRegion; ρ, t, h, NMAX=1000)
     q/(4π*ϵ_cl) * (
         # TODO: Implement equation for charge in lipid, evaluating in cytosol
@@ -76,6 +82,7 @@ function V(z, charge::LipidRegion, eval::CytosolRegion; ρ, t, h, NMAX=1000)
 end
 
 # Charge in cytosol
+# V_^c_w, Eqn 21 in Cahill2012
 function V(z, charge::CytosolRegion, eval::WaterRegion; ρ, t, h, NMAX=1000)
     q/(4π*ϵ_wl) * (
         # TODO: Implement equation for charge in cytosol, evaluating in water
@@ -83,6 +90,7 @@ function V(z, charge::CytosolRegion, eval::WaterRegion; ρ, t, h, NMAX=1000)
     )
 end
 
+# V_^c_l, Eqn 22 in Cahill2012
 function V(z, charge::CytosolRegion, eval::LipidRegion; ρ, t, h, NMAX=1000)
     q/(4π*ϵ_cl) * (
         # TODO: Implement equation for charge in cytosol, evaluating in lipid
@@ -90,6 +98,7 @@ function V(z, charge::CytosolRegion, eval::LipidRegion; ρ, t, h, NMAX=1000)
     )
 end
 
+# V_^c_c, Eqn 23 in Cahill2012
 function V(z, charge::CytosolRegion, eval::CytosolRegion; ρ, t, h, NMAX=1000)
     q/(4π*ϵ_c) * (
         # TODO: Implement equation for charge in cytosol, evaluating in cytosol
