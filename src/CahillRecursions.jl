@@ -27,12 +27,8 @@ const ϵ_cl = (ϵ_c + ϵ_l)/2
 #     w  - charge is in (w)ater, (l)ipid, or (c)ytosol
 #     w  - evaluating in (w)ater, (l)ipid, or (c)ytosol
 # We now achieve this by dispatching on the region types.
-"""
-    V(z, charge::T, eval::U; ρ, t, h, NMAX) where {T,U}
 
-Calculate potential for charge in region T, evaluating in region U.
-NMAX controls the convergence of infinite sums.
-"""
+# Charge in water
 function V(z, charge::WaterRegion, eval::WaterRegion; ρ, t, h, NMAX=1000)
     q/(4π*ϵ_w) * (
         1/√(ρ^2+(z-h)^2) 
@@ -57,12 +53,49 @@ function V(z, charge::WaterRegion, eval::CytosolRegion; ρ, t, h, NMAX=1000)
             for n in 0:NMAX)
 end
 
-# Add methods for charge in Lipid and Cytosol...
-# function V(z, charge::LipidRegion, eval::WaterRegion; kwargs...)
-# function V(z, charge::LipidRegion, eval::LipidRegion; kwargs...)
-# function V(z, charge::LipidRegion, eval::CytosolRegion; kwargs...)
-# function V(z, charge::CytosolRegion, eval::WaterRegion; kwargs...)
-# etc...
+# Charge in lipid
+function V(z, charge::LipidRegion, eval::WaterRegion; ρ, t, h, NMAX=1000)
+    q/(4π*ϵ_wl) * (
+        # TODO: Implement equation for charge in lipid, evaluating in water
+        0.0
+    )
+end
+
+function V(z, charge::LipidRegion, eval::LipidRegion; ρ, t, h, NMAX=1000)
+    q/(4π*ϵ_l) * (
+        # TODO: Implement equation for charge in lipid, evaluating in lipid
+        0.0
+    )
+end
+
+function V(z, charge::LipidRegion, eval::CytosolRegion; ρ, t, h, NMAX=1000)
+    q/(4π*ϵ_cl) * (
+        # TODO: Implement equation for charge in lipid, evaluating in cytosol
+        0.0
+    )
+end
+
+# Charge in cytosol
+function V(z, charge::CytosolRegion, eval::WaterRegion; ρ, t, h, NMAX=1000)
+    q/(4π*ϵ_wl) * (
+        # TODO: Implement equation for charge in cytosol, evaluating in water
+        0.0
+    )
+end
+
+function V(z, charge::CytosolRegion, eval::LipidRegion; ρ, t, h, NMAX=1000)
+    q/(4π*ϵ_cl) * (
+        # TODO: Implement equation for charge in cytosol, evaluating in lipid
+        0.0
+    )
+end
+
+function V(z, charge::CytosolRegion, eval::CytosolRegion; ρ, t, h, NMAX=1000)
+    q/(4π*ϵ_c) * (
+        # TODO: Implement equation for charge in cytosol, evaluating in cytosol
+        0.0
+    )
+end
 
 # Helper functions to determine regions
 function charge_region(h, t)    
@@ -88,8 +121,11 @@ end
 """
     V(z; ρ=sqrt(0.707nm^2+0.707nm^2), t=5nm, h=1nm, NMAX=1000)
 
-Main interface that automatically determines regions and dispatches to appropriate method.
-NMAX controls the convergence of infinite sums.
+Calculate potential at position z, with charge at position h, and membrane thickness t.
+
+Dispatch is made to the correct V_{w,l,c}{w,l,c} function from Cahill's paper, based on the numeric value of h and z relative to t.
+
+NMAX controls the convergence of infinite sums (Cahill uses NMAX=1000).
 """
 function V(z; ρ=sqrt(0.707nm^2+0.707nm^2), t=5nm, h=1nm, NMAX=1000)
     charge = charge_region(h, t)
