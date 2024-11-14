@@ -60,49 +60,57 @@ end
 # V_^l_w, Eqn 15 in Cahill2012
 function V(z, charge::LipidRegion, eval::WaterRegion; ρ, t, h, NMAX=1000)
     q/(4π*ϵ_wl) * (
-        # TODO: Implement equation for charge in lipid, evaluating in water
-        0.0
+        sum((p*p′)^n / √(ρ^2 + (z + 2n*t - h)^2) for n in 0:NMAX) -
+        sum(p′ * (p*p′)^n / √(ρ^2 + (z + 2(n+1)*t + h)^2) for n in 0:NMAX)
     )
 end
 
 # V_^l_l, Eqn 16 in Cahill2012
 function V(z, charge::LipidRegion, eval::LipidRegion; ρ, t, h, NMAX=1000)
     q/(4π*ϵ_l) * (
-        # TODO: Implement equation for charge in lipid, evaluating in lipid
-        0.0
+        sum((p*p′)^abs(n) / √(ρ^2 + (z - 2n*t - h)^2) for n in -NMAX:NMAX) -
+        sum(p*(p*p′)^n / √(ρ^2 + (z - 2n*t + h)^2) for n in 0:NMAX) -
+        sum(p′*(p*p′)^n / √(ρ^2 + (z + 2(n+1)*t + h)^2) for n in 0:NMAX)
     )
 end
 
 # V_^l_c, Eqn 17 in Cahill2012
 function V(z, charge::LipidRegion, eval::CytosolRegion; ρ, t, h, NMAX=1000)
-    q/(4π*ϵ_cl) * (
-        # TODO: Implement equation for charge in lipid, evaluating in cytosol
-        0.0
+    q/(4π*ϵ_cl) * sum(
+        (p*p′)^n * (
+            1/√(ρ^2 + (z - 2n*t - h)^2) -
+            p/√(ρ^2 + (z - 2n*t + h)^2)
+        ) for n in 0:NMAX
     )
 end
 
 # Charge in cytosol
 # V_^c_w, Eqn 21 in Cahill2012
 function V(z, charge::CytosolRegion, eval::WaterRegion; ρ, t, h, NMAX=1000)
-    q/(4π*ϵ_wl) * (
-        # TODO: Implement equation for charge in cytosol, evaluating in water
-        0.0
+    q*ϵ_l/(4π*ϵ_wl*ϵ_cl) * 
+    sum(
+        (p*p′)^n / √(ρ^2 + (z + 2n*t - h)^2)
+        for n in 0:NMAX
     )
 end
 
 # V_^c_l, Eqn 22 in Cahill2012
 function V(z, charge::CytosolRegion, eval::LipidRegion; ρ, t, h, NMAX=1000)
     q/(4π*ϵ_cl) * (
-        # TODO: Implement equation for charge in cytosol, evaluating in lipid
-        0.0
+        sum((p*p′)^n / √(ρ^2 + (z - h + 2n*t)^2) for n in 0:NMAX) -
+        p * sum((p*p′)^n / √(ρ^2 + (z + h - 2n*t)^2) for n in 0:NMAX)
     )
 end
 
 # V_^c_c, Eqn 23 in Cahill2012
 function V(z, charge::CytosolRegion, eval::CytosolRegion; ρ, t, h, NMAX=1000)
     q/(4π*ϵ_c) * (
-        # TODO: Implement equation for charge in cytosol, evaluating in cytosol
-        0.0
+        1/√(ρ^2+(z-h)^2) +
+        p′/√(ρ^2 + (z + h + 2t)^2) -
+        p*(1 - p′^2) * sum(
+            (p*p′)^n / √(ρ^2 + (z - 2n*t - h)^2)
+            for n in 0:NMAX
+        )
     )
 end
 
@@ -110,7 +118,7 @@ end
 function charge_region(h, t)    
     if h > 0
         WaterRegion()
-    elseif h > -t
+    elseif h >= -t
         LipidRegion()
     else
         CytosolRegion()
