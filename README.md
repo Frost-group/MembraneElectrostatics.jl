@@ -7,3 +7,5 @@ Membrane Electrostatics.
 
 We start by reproducing figure 1 of the above paper. 
 
+![First attempt at Figure 1.](./figure1.png)
+

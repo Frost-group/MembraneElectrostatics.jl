@@ -24,16 +24,15 @@ Vs = [V(z, t=t, h=h) for z in Zs]
 @gp :- "set ylabel 'Potential (V)'"
 @gp :- "set arrow from 0,0 to 0,0.025 nohead lc rgb 'red'"
 @gp :- "set arrow from -5E-9,0 to -5E-9,0.025 nohead lc rgb 'red'"
-@gp :- Zs Vs "w l"
 
 # Calculate potentials
-for h in -6nm:6nm:-6nm
+for h in [-6nm,1nm]
     VCs = [V(z, t=t, h=h, NMAX=10) for z in Zs]
     @gp :- Zs VCs "w l title 'h=$(h/nm) nm'"
 end
 
 
 
-Gnuplot.save("figure1.png", term="pngcairo size 800,600 enhanced font 'Helvetica,18'")
+Gnuplot.save("figure1.png", term="pngcairo size 800,600 enhanced font 'Helvetica,14'")
 Gnuplot.save("figure1.pdf", term="pdfcairo size 3in,2in enhanced font 'Helvetica,9'")
 
