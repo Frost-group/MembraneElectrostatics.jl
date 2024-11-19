@@ -1,0 +1,66 @@
+using LinearAlgebra
+
+"""
+Represents the state of a Monte Carlo simulation for an ionic system
+"""
+struct MCState
+    N::Int64                    # Number of particles
+    positions::Matrix{Float64}  # Nx3 matrix of particle positions
+    charges::Vector{Float64}    # N-length vector of particle charges
+    L         # Lattice vectors / box size
+    beta::Float64             # 1/(kB*T)
+    σ::Float64                 # Surface charge density
+end
+"""
+    MCState(charges::Vector{Float64}, L; T::Float64=300.0)
+
+Initialize an (ion) Monte Carlo simulation state given charges and box size (scalar, or 3d tuple (X,Y,Z)).
+
+Randomly distributes particles within the box.
+
+Temperature T is in Kelvin (defaults to 300K).
+"""
+function MCState(charges::Vector, L; T::Float64=300.0)
+    N = length(charges)
+    # Initialize random positions within box
+    positions = L .* rand(N, 3)' # scale all by scalar; or by individual (X,Y,Z)
+    # Calculate β = 1/(kB*T)
+    beta = 1.0 / (1.380649e-23 * T)  # kB in J/K
+
+    # Calculate surface charge density
+    #  From Cahill V, 143 electrons over 50x50nm surface = 4% PS
+    σ = 143 * q / (50e-9 * 50e-9)
+    
+    MCState(N, positions, charges, L, beta, σ)
+end
+
+function calc_energy(S::MCState)
+    E = 0.0
+    
+    # Screened Coulomb interaction between all pairs of ions
+    for i in 1:S.N
+        for j in (i+1):S.N # avoid double counting and self-interaction
+            # Distance between i and j
+            d=norm(S.positions[:,i] - S.positions[:,j])
+            
+            # Calculate potential energy between pair
+            #  ASSUMES WATER BETWEEN ALL IONS
+            #   What would Cahill do? (WWCD?)
+            E += 1/ϵ_w * S.charges[i] * S.charges[j] * 1/d 
+                # Uhm, are the units correct here? 
+        end
+    end
+
+    # Electrostatic interaction between ions and membrane charge, see (27) in Cahill
+    for i in 1:S.N
+        E += S.positions[3,i] * S.charges[i] * S.σ / ϵ_w
+    end
+
+    # Now recurrance formulae; Eqn 9.
+    for i in 1:S.N
+
+    end
+
+    return E
+end
+
