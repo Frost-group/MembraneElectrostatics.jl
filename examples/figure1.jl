@@ -9,6 +9,7 @@ Zs = collect(-(t+5nm):t/100:5nm)
 # Calculate potentials
 Vs = [V(z, t=t, h=h) for z in Zs]
 
+# rescued from https://github.com/jarvist/gnuplot-snippets/blob/master/gnuplot-render.gpt 
 @gp "set linetype 1 pi -1 pt 1 lc rgb '#E41A1C' dt solid # red"
 @gp :- "set linetype 2 pi -1 pt 6 lc rgb '#377EB8' dt solid # blue"
 @gp :- "set linetype 3 pi -1 pt 2 lc rgb '#4DAF4A' dt solid # green"
@@ -30,7 +31,6 @@ for h in [-6nm,1nm]
     VCs = [V(z, t=t, h=h, NMAX=10) for z in Zs]
     @gp :- Zs VCs "w l title 'h=$(h/nm) nm'"
 end
-
 
 
 Gnuplot.save("figure1.png", term="pngcairo size 800,600 enhanced font 'Helvetica,14'")
