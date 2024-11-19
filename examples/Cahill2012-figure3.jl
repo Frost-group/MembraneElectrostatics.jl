@@ -6,7 +6,7 @@
 using MembraneElectrostatics
 using Gnuplot
 
-state = MembraneElectrostatics.MCState([1.0,1,1,-1,-1,-1], (10.0,10.0,10.0))
+state = MembraneElectrostatics.MCState([1.0,1,1,-1,-1,-1], (50nm,50nm,10nm))
 
 show(state)
 

@@ -25,17 +25,18 @@ function MCState(charges::Vector, L; T::Float64=300.0)
     # Initialize random positions within box
     positions = L .* rand(N, 3)' # scale all by scalar; or by individual (X,Y,Z)
     #  β = 1/(kB*T)
-    β = 1.0 / (1.380649e-23 * T)  # kB in J/K
+    β = 1.0 / (8.6173303e-5 * T)  # kB in eV
 
     # Calculate surface charge density
     #  From Cahill V, 143 electrons over 50x50nm surface = 4% PS
     σ = 143 * q / (50nm * 50nm)
+    # numerically about 1/100 ? Units C/m^2 ?
     
     MCState(N, positions, charges, L, β, σ)
 end
 
 function calc_energy(S::MCState)
-    E = 0.0
+    E = 0.0 # eV implicit everywhere
     
     # Screened Coulomb interaction between all pairs of ions
     for i in 1:S.N
@@ -56,11 +57,17 @@ function calc_energy(S::MCState)
     # Electrostatic interaction between ions and membrane charge, see (27) in Cahill
     for i in 1:S.N
         E += S.positions[3,i] * S.charges[i] * S.σ / ϵ_w
+        # Constant E-field -> potential proport to z, units of eV
     end
 
     # Now recurrance formulae; Eqn 9.
     for i in 1:S.N
-
+        # which one to use?
+        #  what about other charges interacting with the images charges? 
+        #  Or would that be double counting?
+        # function V(z, charge::WaterRegion, eval::WaterRegion; ρ, t, h, NMAX=1000)
+        z=S.positions[3,i]
+        V(z,WaterRegion(),WaterRegion(), ρ=0.0, t=5nm, h=z, NMAX=1000)
     end
 
     return E
@@ -78,6 +85,10 @@ function mc_sweep!(S::MCState; δr=0.1nm)
         # Trial move - randn displacement
         S.positions[:,i] += δr * randn(3)
         
+        if S.positions[3,i] < 0.0 # stop ions from penetrating membrane
+            S.positions[3,i] = 0.0
+        end
+        
         # Calculate new energy
         E_new = calc_energy(S)
         
@@ -88,7 +99,7 @@ function mc_sweep!(S::MCState; δr=0.1nm)
         else # Reject move & restore state
             S.positions[:,i] = r_prev
         end
-        println("Energy: $E_new (ΔE = $ΔE)")
+#        println("Energy: $E_new (ΔE = $ΔE)")
     end
 end
 
