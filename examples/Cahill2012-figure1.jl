@@ -1,3 +1,8 @@
+# Cahill2012-figure1
+#
+# Cahill, K. (2012). Models of membrane electrostatics. Physical Review E, 85(5), 051921.
+# https://doi.org/10.1103/PhysRevE.85.051921
+
 using MembraneElectrostatics
 using Gnuplot
 

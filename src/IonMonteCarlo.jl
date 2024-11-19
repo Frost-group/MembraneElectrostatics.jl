@@ -48,7 +48,7 @@ function calc_energy(S::MCState)
             # Calculate potential energy between pair
             #  ASSUMES WATER BETWEEN ALL IONS
             #   What would Cahill do? (WWCD?)
-            E += 1/ϵ_w * S.charges[i] * S.charges[j] * 1/d 
+            E += q/(4π*ϵ_w) * S.charges[i] * S.charges[j] * 1/d 
                 # Uhm, are the units correct here? 
         end
     end
