@@ -6,7 +6,26 @@
 using MembraneElectrostatics
 using Gnuplot
 
-state = MembraneElectrostatics.MCState([1.0,1,1,-1,-1,-1], (50nm,50nm,10nm))
+# "In the simulation, I let the potassium and chloride ions move according to a
+# Metropolis algorithm within a box whose width and length were 50 nm and whose
+# height was 10 nm. I took the potassium concentration to be 150 mM so as to
+# allow for a 10 mM concentration of sodium ions. The box contained 2258 K+
+# ions. The bottom of the box was covered by a uniform negative surface charge
+# density whose total charge was − 143 |e| corresponding to 143 PSs at a molar
+# density of  4%. I used 2115 Cl− ions to make the whole system neutral; these
+# chloride ions played the role of the whole ensemble of anionic cell
+# constituents."
+
+# Create array of charges with 2258 +1s and 2115 -1s
+# charges = vcat(ones(2258), -ones(2115))
+# Box 50nm x 50nm x 10nm
+# box = (50nm, 50nm, 10nm)
+
+# mini system, because of the O(N^2) cost of the explicit Coulomb pair sum #_#
+charges=vcat(ones(90), -ones(85))
+box=(10nm,10nm,10nm)
+
+state = MembraneElectrostatics.MCState(charges, box)
 
 show(state)
 
