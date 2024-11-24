@@ -32,7 +32,7 @@ box=(10nm,10nm,10nm)
 state = MembraneElectrostatics.MCState(charges, box)
 show(state)
 
-MembraneElectrostatics.calc_energy(state)
+MembraneElectrostatics.calc_global_energy(state)
 show(state)
 
 #@showprogress "MC sampling: " 

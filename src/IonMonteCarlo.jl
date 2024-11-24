@@ -35,7 +35,9 @@ function MCState(charges::Vector, L; T::Float64=300.0)
     MCState(N, positions, charges, L, β, σ)
 end
 
-function calc_energy(S::MCState)
+# TODO: rewrite a function that just calculates 'atoms in molecules' sum for 'i' 
+#  Natjre of the loop suggests this should be fine. (Classical physics baby!)
+function calc_global_energy(S::MCState)
     E = 0.0 # eV implicit everywhere
     
     # Screened Coulomb interaction between all pairs of ions
@@ -84,7 +86,7 @@ function mc_sweep!(S::MCState; δr=0.1nm)
 
         # Store previous position and energy
         r_prev = S.positions[:,i]
-        E_prev = calc_energy(S)
+        E_prev = calc_global_energy(S)
         
         # Trial move - randn displacement
         S.positions[:,i] += δr * randn(3)
@@ -94,7 +96,7 @@ function mc_sweep!(S::MCState; δr=0.1nm)
         end
         
         # Calculate new energy
-        E_new = calc_energy(S)
+        E_new = calc_global_energy(S)
         
         # Metropolis acceptance criterion
         ΔE = E_new - E_prev
