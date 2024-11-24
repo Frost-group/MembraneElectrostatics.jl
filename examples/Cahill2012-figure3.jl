@@ -5,6 +5,7 @@
 
 using MembraneElectrostatics
 using Gnuplot
+#using ProgressMeter # Pkg is a bit borked on my laptop, so I can't install this
 
 # "In the simulation, I let the potassium and chloride ions move according to a
 # Metropolis algorithm within a box whose width and length were 50 nm and whose
@@ -21,31 +22,27 @@ using Gnuplot
 # Box 50nm x 50nm x 10nm
 # box = (50nm, 50nm, 10nm)
 
+#######
+# Parameters
+t = 5nm # membrane thickness - does this get passed through?
 # mini system, because of the O(N^2) cost of the explicit Coulomb pair sum #_#
 charges=vcat(ones(90), -ones(85))
 box=(10nm,10nm,10nm)
 
 state = MembraneElectrostatics.MCState(charges, box)
-
 show(state)
 
 MembraneElectrostatics.calc_energy(state)
-
 show(state)
 
-MembraneElectrostatics.mc_sweep!(state)
+#@showprogress "MC sampling: " 
+for i in 1:10
+    print(".")
+    MembraneElectrostatics.mc_sweep!(state)
+end
+show(state)  # Show final state
 
-show(state)
-
-#######
-# Parameters
-t = 5nm
-h = 1nm
-Zs = collect(-(t+5nm):t/100:5nm)
-
-# Calculate potentials
-Vs = [V(z, t=t, h=h) for z in Zs]
-
+# Check convergence ¯\_(ツ)_/¯
 
 
 # rescued from https://github.com/jarvist/gnuplot-snippets/blob/master/gnuplot-render.gpt 
@@ -61,16 +58,24 @@ Vs = [V(z, t=t, h=h) for z in Zs]
 
 # Plot
 @gp :- "set xlabel 'Distance from membrane (nm)'"
-@gp :- "set ylabel 'Potential (V)'"
+@gp :- "set ylabel 'Density'"
 @gp :- "set arrow from 0,0 to 0,0.025 nohead lc rgb 'red'"
 @gp :- "set arrow from -5E-9,0 to -5E-9,0.025 nohead lc rgb 'red'"
 
-## Calculate potentials
-#for h in [-6nm,1nm]
-#    VCs = [V(z, t=t, h=h, NMAX=10) for z in Zs]
-#    @gp :- Zs VCs "w l title 'h=$(h/nm) nm'"
-#end
+# Plot histogram directly in Gnuplot
+@gp :- "set style data histograms"
+@gp :- "set style fill solid 0.5"
+@gp :- "set boxwidth 0.2"
+@gp :- "binwidth = 0.2"  # 10nm/50 bins
+@gp :- "bin(x) = binwidth * floor(x/binwidth)"
 
+# Separate z coordinates by charge
+cation_z_nm = state.positions[3, state.charges .== 1.0] ./ 1e-9  # +1 charges
+anion_z_nm = state.positions[3, state.charges .== -1.0] ./ 1e-9  # -1 charges
+
+# Plot both populations separately
+@gp :- cation_z_nm "using (bin(\$1)):(1.0) smooth frequency with boxes title 'Cation density' lc rgb '#E41A1C'"
+@gp :- anion_z_nm "using (bin(\$1)):(1.0) smooth frequency with boxes title 'Anion density' lc rgb '#377EB8'"
 
 Gnuplot.save("figure3.png", term="pngcairo size 800,600 enhanced font 'Helvetica,14'")
 Gnuplot.save("figure3.pdf", term="pdfcairo size 3in,2in enhanced font 'Helvetica,9'")
