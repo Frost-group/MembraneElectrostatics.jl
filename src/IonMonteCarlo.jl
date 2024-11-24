@@ -39,20 +39,24 @@ function calc_energy(S::MCState)
     E = 0.0 # eV implicit everywhere
     
     # Screened Coulomb interaction between all pairs of ions
+    E_C=0.0
+    r_diff=Vector{Float64}(undef,3) # preallocate for loop
     for i in 1:S.N
         for j in (i+1):S.N # avoid double counting and self-interaction
             # Distance between i and j
-            d=norm(S.positions[:,i] - S.positions[:,j])
+            r_diff .= view(S.positions,:,i) - view(S.positions,:,j) # views to avoid slices
+            d=norm(r_diff)
 
             # TODO: Should include replicas in X&Y for PBCs!
             
             # Calculate potential energy between pair
             #  ASSUMES WATER BETWEEN ALL IONS
             #   What would Cahill do? (WWCD?)
-            E += q/(4π*ϵ_w) * S.charges[i] * S.charges[j] * 1/d 
+            E_C += S.charges[i] * S.charges[j] / d 
                 # Uhm, are the units correct here? 
         end
     end
+    E *= E_C* q/(4π*ϵ_w) 
 
     # Electrostatic interaction between ions and membrane charge, see (27) in Cahill
     for i in 1:S.N
@@ -67,7 +71,7 @@ function calc_energy(S::MCState)
         #  Or would that be double counting?
         # function V(z, charge::WaterRegion, eval::WaterRegion; ρ, t, h, NMAX=1000)
         z=S.positions[3,i]
-        V(z,WaterRegion(),WaterRegion(), ρ=0.0, t=5nm, h=z, NMAX=1000)
+        V(z,WaterRegion(),WaterRegion(), ρ=0.0, t=5nm, h=z, NMAX=100)
     end
 
     return E
