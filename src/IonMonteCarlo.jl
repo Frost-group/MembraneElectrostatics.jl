@@ -36,7 +36,7 @@ function MCState(charges::Vector, L; T::Float64=300.0)
 end
 
 # TODO: rewrite a function that just calculates 'atoms in molecules' sum for 'i' 
-#  Natjre of the loop suggests this should be fine. (Classical physics baby!)
+#  Nature of the loop suggests this should be fine. (Classical physics baby!)
 function calc_global_energy(S::MCState)
     E = 0.0 # eV implicit everywhere
     
@@ -73,20 +73,55 @@ function calc_global_energy(S::MCState)
         #  Or would that be double counting?
         # function V(z, charge::WaterRegion, eval::WaterRegion; ρ, t, h, NMAX=1000)
         z=S.positions[3,i]
-        V(z,WaterRegion(),WaterRegion(), ρ=0.0, t=5nm, h=z, NMAX=100)
+        E+=V(z,WaterRegion(),WaterRegion(), ρ=0.0, t=5nm, h=z, NMAX=100)
     end
 
     return E
 end
 
-function mc_sweep!(S::MCState; δr=0.1nm)
+function calc_perion_energy(S::MCState, i::Int)
+    E = 0.0 # eV implicit everywhere
+    
+    # Screened Coulomb interaction between all pairs of ions
+    E_C=0.0
+    r_diff=Vector{Float64}(undef,3) # preallocate for loop
+    for j in 1:S.N # avoid double counting and self-interaction
+        # Distance between i and j
+        r_diff .= view(S.positions,:,i) - view(S.positions,:,j) # views to avoid slices
+        d=norm(r_diff)
+
+        if d==0.0 # skip self-interaction
+            continue
+        end
+
+        # TODO: Should include replicas in X&Y for PBCs!
+        
+        # Calculate potential energy between pair
+        #  ASSUMES WATER BETWEEN ALL IONS
+        #   What would Cahill do? (WWCD?)
+        E_C += S.charges[i] * S.charges[j] / d 
+            # Uhm, are the units correct here? 
+    end
+    E *= E_C* q/(4π*ϵ_w) 
+
+    # Electrostatic interaction between ions and membrane charge, see (27) in Cahill
+
+    E += S.positions[3,i] * S.charges[i] * S.σ / ϵ_w 
+
+#    recurrance formulae; Eqn 9.
+    z=S.positions[3,i]
+    E+=V(z,WaterRegion(),WaterRegion(), ρ=0.0, t=5nm, h=z, NMAX=100)
+
+end
+
+function mc_sweep!(S::MCState; δr=0.1nm, GLOBAL_ENERGY=false)
     ACCEPTED = 0
     # One sweep = N attempted moves
     for i in 1:S.N # should we shuffle?
 
         # Store previous position and energy
         r_prev = S.positions[:,i]
-        E_prev = calc_global_energy(S)
+        E_prev = GLOBAL_ENERGY ? calc_global_energy(S) : calc_perion_energy(S,i)
         
         # Trial move - randn displacement
         S.positions[:,i] += δr * randn(3)
@@ -96,7 +131,7 @@ function mc_sweep!(S::MCState; δr=0.1nm)
         end
         
         # Calculate new energy
-        E_new = calc_global_energy(S)
+        E_new = GLOBAL_ENERGY ? calc_global_energy(S) : calc_perion_energy(S,i)
         
         # Metropolis acceptance criterion
         ΔE = E_new - E_prev

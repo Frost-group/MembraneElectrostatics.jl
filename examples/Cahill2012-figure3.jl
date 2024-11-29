@@ -36,7 +36,7 @@ MembraneElectrostatics.calc_global_energy(state)
 show(state)
 
 #@showprogress "MC sampling: " 
-for i in 1:10
+for i in 1:10_000
     print(".")
     MembraneElectrostatics.mc_sweep!(state)
 end
