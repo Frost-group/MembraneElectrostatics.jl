@@ -84,34 +84,39 @@ end
 function calc_perion_energy(S::MCState, i::Int)
     E = 0.0 # eV implicit everywhere
     
-    # Screened Coulomb interaction between all pairs of ions
+    # Screened Coulomb interaction between all pairs of ions, via Eqn 9
     E_C=0.0
     r_diff=Vector{Float64}(undef,3) # preallocate for loop
-    for j in 1:S.N 
+    for j in 1:S.N
+        if i==j # avoid self-interaction
+            continue
+        end 
+
         # Distance between i and j
         r_diff .= view(S.positions,:,i) - view(S.positions,:,j) # views to avoid slices
-        d=norm(r_diff)
-
-        if d<0.001 # skip self-interaction
-            continue
-        end
+        z=S.positions[3,i]
+        ρ=sqrt(r_diff[1]^2 + r_diff[2]^2) 
 
         # TODO: Should include replicas in X&Y for PBCs!
         
-        # Calculate potential energy between pair
+        # Simple electrostatics
+        #E_C += S.charges[i] * S.charges[j] / d
+
         #   What would Cahill do? (WWCD?)
-        E_C += S.charges[i] * S.charges[j] / d 
+        #   "I went toward you, endlessly toward the light"
+        E_C+=V(z,WaterRegion(),WaterRegion(), ρ=ρ, t=5nm, h=z, NMAX=100) 
             # Uhm, are the units correct here? 
     end
-    E *= E_C* q/(4π*ϵ_w)         #  ASSUMES WATER BETWEEN ALL IONS
+#    E *= E_C* q/(4π*ϵ_w)         #  ASSUMES WATER BETWEEN ALL IONS
 
     # Electrostatic interaction between ions and membrane charge, see (27) in Cahill
     E += S.positions[3,i] * S.charges[i] * S.σ / ϵ_w 
 
-# recurrance formulae for ion interacting with slab dielectrics (membrane); Eqn 9.
+# recurrance formulae for self-interaction with slab dielectrics (membrane); Eqn 9.
     z=S.positions[3,i]
-    # currently eval as Inf (!!!!) FIXME 
-    E+=V(z,WaterRegion(),WaterRegion(), ρ=1.0, t=5nm, h=z, NMAX=100)
+    # currently eval by taking ρ to very large... I think this is the same as Eqn. 35
+    #   FIXME: Actually implement the more simple Eqn. 35 (And maybe check understanding at same time) 
+    E+=V(z,WaterRegion(),WaterRegion(), ρ=100.0, t=5nm, h=z, NMAX=100)
 
 end
 

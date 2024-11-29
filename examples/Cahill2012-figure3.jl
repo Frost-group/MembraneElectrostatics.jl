@@ -35,9 +35,13 @@ show(state)
 MembraneElectrostatics.calc_global_energy(state)
 show(state)
 
+# The simulations consisted of eight separate runs in which 23 000 sweeps were
+# allowed for thermalization. Four of the runs collected data for an additional
+# 50 000 sweeps; the other four for an additional 9000 sweeps.
+
 global ACCEPTED=0
 #@showprogress "MC sampling: " 
-for i in 1:1_000
+for i in 1:23_000
     print(".")
     global ACCEPTED+=MembraneElectrostatics.mc_sweep!(state)
 end
