@@ -20,10 +20,10 @@ Randomly distributes particles within the box.
 
 Temperature T is in Kelvin (defaults to 300K).
 """
-function MCState(charges::Vector, L; T::Float64=300.0)
+function MCState(charges::Vector, L; T::AbstractFloat=300.0)
     N = length(charges)
     # Initialize random positions within box
-    positions = L .* rand(N, 3)' # scale all by scalar; or by individual (X,Y,Z)
+    positions = L .* rand(N, 3)' # scale random positions by scalar L; or by (X,Y,Z) tuple 
     #  β = 1/(kB*T)
     β = 1.0 / (8.6173303e-5 * T)  # kB in eV
 
@@ -79,42 +79,43 @@ function calc_global_energy(S::MCState)
     return E
 end
 
+#  Nature of the loop in the global energy function suggests this should be fine. 
+#     (Classical physics baby!)
 function calc_perion_energy(S::MCState, i::Int)
     E = 0.0 # eV implicit everywhere
     
     # Screened Coulomb interaction between all pairs of ions
     E_C=0.0
     r_diff=Vector{Float64}(undef,3) # preallocate for loop
-    for j in 1:S.N # avoid double counting and self-interaction
+    for j in 1:S.N 
         # Distance between i and j
         r_diff .= view(S.positions,:,i) - view(S.positions,:,j) # views to avoid slices
         d=norm(r_diff)
 
-        if d==0.0 # skip self-interaction
+        if d<0.001 # skip self-interaction
             continue
         end
 
         # TODO: Should include replicas in X&Y for PBCs!
         
         # Calculate potential energy between pair
-        #  ASSUMES WATER BETWEEN ALL IONS
         #   What would Cahill do? (WWCD?)
         E_C += S.charges[i] * S.charges[j] / d 
             # Uhm, are the units correct here? 
     end
-    E *= E_C* q/(4π*ϵ_w) 
+    E *= E_C* q/(4π*ϵ_w)         #  ASSUMES WATER BETWEEN ALL IONS
 
     # Electrostatic interaction between ions and membrane charge, see (27) in Cahill
-
     E += S.positions[3,i] * S.charges[i] * S.σ / ϵ_w 
 
-#    recurrance formulae; Eqn 9.
+# recurrance formulae for ion interacting with slab dielectrics (membrane); Eqn 9.
     z=S.positions[3,i]
-    E+=V(z,WaterRegion(),WaterRegion(), ρ=0.0, t=5nm, h=z, NMAX=100)
+    # currently eval as Inf (!!!!) FIXME 
+    E+=V(z,WaterRegion(),WaterRegion(), ρ=1.0, t=5nm, h=z, NMAX=100)
 
 end
 
-function mc_sweep!(S::MCState; δr=0.1nm, GLOBAL_ENERGY=false)
+function mc_sweep!(S::MCState; δr=0.5nm, GLOBAL_ENERGY=false)
     ACCEPTED = 0
     # One sweep = N attempted moves
     for i in 1:S.N # should we shuffle?
@@ -129,6 +130,9 @@ function mc_sweep!(S::MCState; δr=0.1nm, GLOBAL_ENERGY=false)
         if S.positions[3,i] < 0.0 # stop ions from penetrating membrane
             S.positions[3,i] = 0.0
         end
+        if S.positions[3,i] > 10.0nm
+            S.positions[3,i] = 10.0nm # stop them escaping
+        end
         
         # Calculate new energy
         E_new = GLOBAL_ENERGY ? calc_global_energy(S) : calc_perion_energy(S,i)
@@ -142,5 +146,7 @@ function mc_sweep!(S::MCState; δr=0.1nm, GLOBAL_ENERGY=false)
         end
 #        println("Energy: $E_new (ΔE = $ΔE)")
     end
+
+    return ACCEPTED
 end
 

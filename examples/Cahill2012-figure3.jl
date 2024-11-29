@@ -35,12 +35,15 @@ show(state)
 MembraneElectrostatics.calc_global_energy(state)
 show(state)
 
+global ACCEPTED=0
 #@showprogress "MC sampling: " 
-for i in 1:10_000
+for i in 1:1_000
     print(".")
-    MembraneElectrostatics.mc_sweep!(state)
+    global ACCEPTED+=MembraneElectrostatics.mc_sweep!(state)
 end
 show(state)  # Show final state
+
+println("Accepted $(ACCEPTED) Accepted ratio: $(ACCEPTED/(state.N*10_000))")
 
 # Check convergence ¯\_(ツ)_/¯
 
