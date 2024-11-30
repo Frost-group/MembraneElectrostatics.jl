@@ -41,7 +41,7 @@ show(state)
 
 global ACCEPTED=0
 #@showprogress "MC sampling: " 
-for i in 1:23_000
+for i in 1:1_000
     print(".")
     global ACCEPTED+=MembraneElectrostatics.mc_sweep!(state)
 end

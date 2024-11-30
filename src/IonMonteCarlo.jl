@@ -83,6 +83,8 @@ end
 #     (Classical physics baby!)
 function calc_perion_energy(S::MCState, i::Int)
     E = 0.0 # eV implicit everywhere
+   
+    qi=S.charges[i] # to multiply by all the calculation potentials V
     
     # Screened Coulomb interaction between all pairs of ions, via Eqn 9
     E_C=0.0
@@ -104,19 +106,19 @@ function calc_perion_energy(S::MCState, i::Int)
 
         #   What would Cahill do? (WWCD?)
         #   "I went toward you, endlessly toward the light"
-        E_C+=V(z,WaterRegion(),WaterRegion(), ρ=ρ, t=5nm, h=z, NMAX=100) 
+        E_C+=qi * V(z,WaterRegion(),WaterRegion(), ρ=ρ, t=5nm, h=z, NMAX=100) 
             # Uhm, are the units correct here? 
     end
 #    E *= E_C* q/(4π*ϵ_w)         #  ASSUMES WATER BETWEEN ALL IONS
 
     # Electrostatic interaction between ions and membrane charge, see (27) in Cahill
-    E += S.positions[3,i] * S.charges[i] * S.σ / ϵ_w 
+    E += S.positions[3,i] * qi * S.σ / ϵ_w 
 
 # recurrance formulae for self-interaction with slab dielectrics (membrane); Eqn 9.
     z=S.positions[3,i]
     # currently eval by taking ρ to very large... I think this is the same as Eqn. 35
     #   FIXME: Actually implement the more simple Eqn. 35 (And maybe check understanding at same time) 
-    E+=V(z,WaterRegion(),WaterRegion(), ρ=100.0, t=5nm, h=z, NMAX=100)
+    E+=qi * V(z,WaterRegion(),WaterRegion(), ρ=100.0, t=5nm, h=z, NMAX=100)
 
 end
 
