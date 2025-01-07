@@ -5,7 +5,7 @@
 
 using MembraneElectrostatics
 using Gnuplot
-#using ProgressMeter # Pkg is a bit borked on my laptop, so I can't install this
+using ProgressMeter # Pkg is a bit borked on my laptop, so I can't install this
 
 # "In the simulation, I let the potassium and chloride ions move according to a
 # Metropolis algorithm within a box whose width and length were 50 nm and whose
@@ -40,9 +40,7 @@ show(state)
 # 50 000 sweeps; the other four for an additional 9000 sweeps.
 
 global ACCEPTED=0
-#@showprogress "MC sampling: " 
-for i in 1:1_000
-    print(".")
+@showprogress "MC sampling: " for i in 1:10_000
     global ACCEPTED+=MembraneElectrostatics.mc_sweep!(state)
 end
 show(state)  # Show final state
