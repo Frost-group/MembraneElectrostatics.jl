@@ -18,7 +18,10 @@ export ε_0, ϵ_0, eV, q, ElectronVolt
 export ϵ_w, ϵ_l, ϵ_c, nm
 # Export CahillRecursionsfunctions
 export V_ww, V_wl, V_wc, V
+# Export types
+export WaterRegion, LipidRegion, CytosolRegion
 # Export IonMonteCarlo functions
 export MCState
+
 
 end 

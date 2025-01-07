@@ -37,6 +37,7 @@ end
 
 # TODO: rewrite a function that just calculates 'atoms in molecules' sum for 'i' 
 #  Nature of the loop suggests this should be fine. (Classical physics baby!)
+#  WARNING: I think this is mostly WRONG!
 function calc_global_energy(S::MCState)
     E = 0.0 # eV implicit everywhere
     
@@ -86,7 +87,7 @@ function calc_perion_energy(S::MCState, i::Int)
    
     qi=S.charges[i] # to multiply by all the calculation potentials V
     
-    # Screened Coulomb interaction between all pairs of ions, via Eqn 9
+# Screened Coulomb interaction, mediated by the image charges induced in the membrane, between all pairs of ions, via Eqn 9
     r_diff=Vector{Float64}(undef,3) # preallocate for loop
     for j in 1:S.N
         if i==j # avoid self-interaction
@@ -99,32 +100,31 @@ function calc_perion_energy(S::MCState, i::Int)
         ρ=sqrt(r_diff[1]^2 + r_diff[2]^2) # distance in plane
 
         # TODO: Should include replicas in X&Y for PBCs!
-        
-        # Simple electrostatics
-        #E_C += S.charges[i] * S.charges[j] / d
 
         #   What would Cahill do? (WWCD?)
         #   "I went toward you, endlessly toward the light"
         # Potential from image charges generated in membrane by the charge at r_diff
-        E+=qi * V(z,WaterRegion(),WaterRegion(), ρ=ρ, t=5nm, h=z, NMAX=100) 
+        E+=qi * V(z,WaterRegion(),WaterRegion(), ρ=ρ, t=5nm, h=z, NMAX=10) 
             # Uhm, are the units correct here? 
     end
 
     # Electrostatic interaction between ions and membrane charge, see (27) in Cahill
-    E += S.positions[3,i] * qi * S.σ / ϵ_w 
+# constant E-field -> potential V = z * Ef = z * σ / ϵ_w
+# units of eV presumed ? Is that the correct dielectric constant?
+    E += qi * ( S.positions[3,i] * S.σ / ϵ_w ) 
 
-# recurrance formulae for self-interaction with slab dielectrics (membrane); Eqn 9.
+# recurrance formulae for ion self-interaction with slab dielectrics (membrane); Eqn 9.
     z=S.positions[3,i]
     # currently eval by taking ρ to very large... I think this is the same as Eqn. 35
     #   FIXME: Actually implement the more simple Eqn. 35 (And maybe check understanding at same time) 
-    E+=qi * V(z,WaterRegion(),WaterRegion(), ρ=100.0, t=5nm, h=z, NMAX=100)
+    E+=qi * V(z,WaterRegion(),WaterRegion(), ρ=100.0, t=5nm, h=z, NMAX=10)
 
     return E
 end
 
 function mc_sweep!(S::MCState; δr=0.5nm, GLOBAL_ENERGY=false)
-    ACCEPTED = 0
-    # One sweep = N attempted moves
+    ACCEPTED = 0 # One sweep = N attempted moves
+
     for i in 1:S.N # should we shuffle?
 
         # Store previous position and energy

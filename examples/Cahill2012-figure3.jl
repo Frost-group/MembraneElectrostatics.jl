@@ -18,9 +18,9 @@ using ProgressMeter # Pkg is a bit borked on my laptop, so I can't install this
 # constituents."
 
 # Create array of charges with 2258 +1s and 2115 -1s
-# charges = vcat(ones(2258), -ones(2115))
+#charges = vcat(ones(2258), -ones(2115))
 # Box 50nm x 50nm x 10nm
-# box = (50nm, 50nm, 10nm)
+#box = (50nm, 50nm, 10nm)
 
 #######
 # Parameters
@@ -29,23 +29,29 @@ t = 5nm # membrane thickness - does this get passed through?
 charges=vcat(ones(90), -ones(85))
 box=(10nm,10nm,10nm)
 
+# midi system
+# charges=vcat(ones(90*4), -ones(85*4))
+# box=(20nm,20nm,10nm)
+
 state = MembraneElectrostatics.MCState(charges, box)
-show(state)
+# show(state)
 
-MembraneElectrostatics.calc_global_energy(state)
-show(state)
+# MembraneElectrostatics.calc_global_energy(state)
+# show(state)
 
-# The simulations consisted of eight separate runs in which 23 000 sweeps were
+# The simulations consisted of eight separate runs in which 23_000 sweeps were
 # allowed for thermalization. Four of the runs collected data for an additional
-# 50 000 sweeps; the other four for an additional 9000 sweeps.
+# 50_000 sweeps; the other four for an additional 9_000 sweeps.
+
+SWEEPS=10_000
 
 global ACCEPTED=0
-@showprogress "MC sampling: " for i in 1:10_000
+@showprogress "MC sampling: " for i in 1:SWEEPS
     global ACCEPTED+=MembraneElectrostatics.mc_sweep!(state)
 end
 show(state)  # Show final state
 
-println("Accepted $(ACCEPTED) Accepted ratio: $(ACCEPTED/(state.N*10_000))")
+println("Accepted $(ACCEPTED) Accepted ratio: $(ACCEPTED/(state.N*SWEEPS))")
 
 # Check convergence ¯\_(ツ)_/¯
 
@@ -84,4 +90,59 @@ anion_z_nm = state.positions[3, state.charges .== -1.0] ./ 1e-9  # -1 charges
 
 Gnuplot.save("figure3.png", term="pngcairo size 800,600 enhanced font 'Helvetica,14'")
 Gnuplot.save("figure3.pdf", term="pdfcairo size 3in,2in enhanced font 'Helvetica,9'")
+
+# Figure 4
+
+# Calculate average potential as function of z, for both ion types
+# We'll sample z values from 0 to 10nm
+z_values = range(0, 10e-9, length=100)
+
+# Calculate potentials for K+ and Cl-
+function test_charge_potential(state::MCState, z::Float64, test_charge::Float64)
+    V_total = 0.0
+    
+    # 1. Membrane surface charge contribution (Eqn 27)
+    V_total += z * state.σ / ϵ_w
+    
+    # 2. Ion-ion interactions (average over existing ions) (Eqn 9, effectively)
+    r_diff = Vector{Float64}(undef, 3)
+    for i in 1:state.N
+        r_diff[1:2] .= state.positions[1:2,i]
+        r_diff[3] = state.positions[3,i] - z
+        ρ = sqrt(r_diff[1]^2 + r_diff[2]^2)
+        V_total += state.charges[i] * V(z, WaterRegion(), WaterRegion(), 
+            ρ=ρ, t=5e-9, h=z, NMAX=10)
+    end
+    
+    # 3. Self potential (Eqn 35)
+    V_self = test_charge * V(z, WaterRegion(), WaterRegion(), 
+        ρ=100.0, t=5e-9, h=z, NMAX=10)
+    
+    return V_total, V_total + V_self
+end
+
+# Calculate potentials at each z
+V_K = zeros(length(z_values))
+V_Cl = zeros(length(z_values))
+V_no_self = zeros(length(z_values))
+
+@showprogress "Calculating potentials: " for (i, z) in enumerate(z_values)
+    V_no_self[i], V_K[i] = test_charge_potential(state, z, 1.0)
+    _, V_Cl[i] = test_charge_potential(state, z, -1.0)
+end
+
+# Rescale to nm for plotting
+z_nm = z_values ./ 1e-9
+
+# Plot
+@gp :- "set xlabel 'Distance from membrane (nm)'"
+@gp :- "set ylabel 'Potential (V)'"
+@gp :- "set key right"
+
+@gp z_nm V_K "with lines title 'K^+ potential' lw 2 lc rgb '#E41A1C'"
+@gp :- z_nm V_Cl "with lines title 'Cl^- potential' dt 2 lw 2 lc rgb '#377EB8'"
+@gp :- z_nm V_no_self "with lines title 'Without self-potential' dt 3 lw 2 lc rgb '#984EA3'"
+
+Gnuplot.save("figure4.png", term="pngcairo size 800,600 enhanced font 'Helvetica,14'")
+Gnuplot.save("figure4.pdf", term="pdfcairo size 3in,2in enhanced font 'Helvetica,9'")
 
