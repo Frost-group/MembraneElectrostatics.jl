@@ -46,13 +46,14 @@ end
 
 #  Nature of the loop in the global energy function suggests this should be fine. 
 #     (Classical physics baby!)
-function calc_perion_energy(S::MCState, i::Int; cutoff=2nm)
+function calc_perion_energy(S::MCState, i::Int; cutoff=2nm, CORRELATION=false, ELECTROSTATIC=false, SELF_INTERACTION=true)
     E = 0.0 # energy units of eV implicit everywhere
    
     qi=S.charges[i] # to multiply by all the calculation potentials V
     z=S.positions[3,i]
 
-# Screened Coulomb interaction, mediated by the image charges induced in the membrane, between all pairs of ions, via Eqn 9
+if CORRELATION 
+    # Screened Coulomb interaction, mediated by the image charges induced in the membrane, between all pairs of ions, via Eqn 9
     r_diff=Vector{Float64}(undef,3) # preallocate for loop
     for j in 1:S.N
         if i==j # avoid self-interaction
@@ -81,16 +82,21 @@ function calc_perion_energy(S::MCState, i::Int; cutoff=2nm)
                 # Uhm, are the units correct here? 
         end
     end
+end
 
-    # Electrostatic interaction between ions and membrane charge, see (27) in Cahill
+# Electrostatic interaction between ions and membrane charge, see (27) in Cahill
 # constant E-field -> potential V = z * Ef = z * σ / ϵ_w
 # units of eV presumed ? Is that the correct dielectric constant?
+if ELECTROSTATIC
     E += qi * ( z * S.σ / ϵ_w ) 
+end
 
 # recurrance formulae for ion self-interaction with slab dielectrics (membrane); Eqn 9.
     # currently eval by taking ρ to very large... I think this is the same as Eqn. 35
     #   FIXME: Actually implement the more simple Eqn. 35 (And maybe check understanding at same time) 
+if SELF_INTERACTION
     E+=qi * qi * V(z,WaterRegion(),WaterRegion(), ρ=100.0, t=5nm, h=z, NMAX=20)
+end
 
     return E
 end
