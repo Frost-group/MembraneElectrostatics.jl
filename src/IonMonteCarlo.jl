@@ -40,13 +40,13 @@ end
 function calc_global_energy(S::MCState)
 
 #  WARNING: I think this is mostly WRONG!
-exception("calc_global_energy is not implemented")
+    exception("calc_global_energy is not implemented")
 
 end
 
 #  Nature of the loop in the global energy function suggests this should be fine. 
 #     (Classical physics baby!)
-function calc_perion_energy(S::MCState, i::Int; cutoff=2nm, CORRELATION=false, ELECTROSTATIC=false, SELF_INTERACTION=true)
+function calc_perion_energy(S::MCState, i::Int; cutoff=2nm, CORRELATION=true, ELECTROSTATIC=true, SELF_INTERACTION=true)
     E = 0.0 # energy units of eV implicit everywhere
    
     qi=S.charges[i] # to multiply by all the calculation potentials V
@@ -78,7 +78,7 @@ if CORRELATION
             #   What would Cahill do? (WWCD?)
             #   "I went toward you, endlessly toward the light"
             # Potential from image charges generated in membrane by the charge at r_diff
-            E+=qi * qj * V(z,WaterRegion(),WaterRegion(), ρ=ρ, t=5nm, h=h, NMAX=20) 
+            E+=qi * qj * V(z,WaterRegion(),WaterRegion(), ρ=ρ, t=5nm, h=h, NMAX=100) 
                 # Uhm, are the units correct here? 
         end
     end
@@ -88,14 +88,13 @@ end
 # constant E-field -> potential V = z * Ef = z * σ / ϵ_w
 # units of eV presumed ? Is that the correct dielectric constant?
 if ELECTROSTATIC
-    E += qi * ( z * S.σ / ϵ_w ) 
+    E += qi * (z * S.σ / ϵ_w ) 
 end
 
 # recurrance formulae for ion self-interaction with slab dielectrics (membrane); Eqn 9.
-    # currently eval by taking ρ to very large... I think this is the same as Eqn. 35
-    #   FIXME: Actually implement the more simple Eqn. 35 (And maybe check understanding at same time) 
+# now detects ρ≈0 and runs the dedicated (no infinite 1/r term) code
 if SELF_INTERACTION
-    E+=qi * qi * V(z,WaterRegion(),WaterRegion(), ρ=100.0, t=5nm, h=z, NMAX=20)
+    E+=qi * qi * V(z,WaterRegion(),WaterRegion(), ρ=0.0, t=5nm, h=z, NMAX=100)
 end
 
     return E

@@ -21,7 +21,7 @@ export V_ww, V_wl, V_wc, V
 # Export types
 export WaterRegion, LipidRegion, CytosolRegion
 # Export IonMonteCarlo functions
-export MCState
+export MCState, calc_global_energy, calc_perion_energy
 
 
 end 

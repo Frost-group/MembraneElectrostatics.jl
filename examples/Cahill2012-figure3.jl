@@ -1,5 +1,6 @@
 # Cahill2012-figure3
-#
+# 
+# Reproduces Figure 3 & 4 from:
 # Cahill, K. (2012). Models of membrane electrostatics. Physical Review E, 85(5), 051921. 
 # https://doi.org/10.1103/PhysRevE.85.051921
 
@@ -102,33 +103,28 @@ z_values = range(0, 10e-9, length=100)
 
 # Calculate potentials for K+ and Cl-
 function test_charge_potential(state::MCState, z::Float64, test_charge::Float64)
-    V_total = 0.0
+    # Create temporary state with test charge at position (X,Y,z)
+    temp_state = MCState(
+        state.N + 1,
+        hcat(state.positions, [state.L[1]/2, state.L[2]/2, z]),
+        vcat(state.charges, test_charge),
+        state.L,
+        state.β,
+        state.σ
+    )
     
-    # eval at middle of box ?
-    X=state.L[1]/2
-    Y=state.L[2]/2
+    # Calculate potential energy of test charge (last particle)
+    V_no_self = calc_perion_energy(temp_state, temp_state.N, 
+        CORRELATION=true, 
+        ELECTROSTATIC=true, 
+        SELF_INTERACTION=false) / test_charge
 
-    # 1. Membrane surface charge contribution (Eqn 27)
-    V_total += z * state.σ / ϵ_w
+    V_with_self = calc_perion_energy(temp_state, temp_state.N,
+        CORRELATION=true, 
+        ELECTROSTATIC=true, 
+        SELF_INTERACTION=true) / test_charge
     
-    # 2. Ion-ion interactions (average over existing ions) (Eqn 9, effectively)
-    r_diff = Vector{Float64}(undef, 3)
-    for i in 1:state.N
-        # Include central cell and nearest neighbors in x,y
-        for dx in (-1,0,1), dy in (-1,0,1)
-            r_diff[1] = X - state.positions[1,i] + dx*state.L[1]
-            r_diff[2] = Y - state.positions[2,i] + dy*state.L[2]
-            ρ = sqrt(r_diff[1]^2 + r_diff[2]^2)
-            V_total += state.charges[i] * V(z, WaterRegion(), WaterRegion(), 
-                ρ=ρ, t=5e-9, h=z, NMAX=10)
-        end
-    end
-    
-    # 3. Self potential (Eqn 35)
-    V_self = test_charge * V(z, WaterRegion(), WaterRegion(), 
-        ρ=100.0, t=5e-9, h=z, NMAX=10)
-    
-    return V_total, V_total + V_self
+    return V_no_self, V_with_self
 end
 
 # Calculate potentials at each z
@@ -156,3 +152,25 @@ z_nm = z_values ./ 1e-9
 Gnuplot.save("figure4.png", term="pngcairo size 800,600 enhanced font 'Helvetica,14'")
 Gnuplot.save("figure4.pdf", term="pdfcairo size 3in,2in enhanced font 'Helvetica,9'")
 
+# Hold my beer, I'm going to use printf
+
+function debug_energy_components(S::MCState, i::Int)
+    println("Ion $i analysis:")
+    println("Position: ", S.positions[:,i])
+    println("Charge: ", S.charges[i])
+    
+    E_corr = calc_perion_energy(S, i, CORRELATION=true, 
+                               ELECTROSTATIC=false, SELF_INTERACTION=false)
+    E_elec = calc_perion_energy(S, i, CORRELATION=false, 
+                               ELECTROSTATIC=true, SELF_INTERACTION=false)
+    E_self = calc_perion_energy(S, i, CORRELATION=false, 
+                               ELECTROSTATIC=false, SELF_INTERACTION=true)
+    
+    println("Correlation energy: ", E_corr)
+    println("Electrostatic energy: ", E_elec)
+    println("Self-interaction: ", E_self)
+end
+
+for i in 1:state.N
+    debug_energy_components(state, i)
+end
