@@ -5,7 +5,11 @@
 
 using MembraneElectrostatics
 using Gnuplot
-using ProgressMeter # Pkg is a bit borked on my laptop, so I can't install this
+using ProgressMeter
+
+#######
+# Parameters
+t = 5nm # membrane thickness - does this get passed through?
 
 # "In the simulation, I let the potassium and chloride ions move according to a
 # Metropolis algorithm within a box whose width and length were 50 nm and whose
@@ -17,21 +21,20 @@ using ProgressMeter # Pkg is a bit borked on my laptop, so I can't install this
 # chloride ions played the role of the whole ensemble of anionic cell
 # constituents."
 
-# Create array of charges with 2258 +1s and 2115 -1s
-#charges = vcat(ones(2258), -ones(2115))
-# Box 50nm x 50nm x 10nm
-#box = (50nm, 50nm, 10nm)
+# Create array of charges with XXX +1s and YYY -1s
 
-#######
-# Parameters
-t = 5nm # membrane thickness - does this get passed through?
+
 # mini system, because of the O(N^2) cost of the explicit Coulomb pair sum #_#
-charges=vcat(ones(90), -ones(85))
-box=(10nm,10nm,10nm)
+# charges=vcat(ones(90), -ones(85))
+# box=(10nm,10nm,10nm)
 
 # midi system
-# charges=vcat(ones(90*4), -ones(85*4))
-# box=(20nm,20nm,10nm)
+charges=vcat(ones(90*4), -ones(85*4))
+box=(20nm,20nm,10nm)
+
+# Full system
+# charges = vcat(ones(2258), -ones(2115))
+# box = (50nm, 50nm, 10nm)
 
 state = MembraneElectrostatics.MCState(charges, box)
 # show(state)
@@ -43,7 +46,7 @@ state = MembraneElectrostatics.MCState(charges, box)
 # allowed for thermalization. Four of the runs collected data for an additional
 # 50_000 sweeps; the other four for an additional 9_000 sweeps.
 
-SWEEPS=10_000
+SWEEPS=23_000
 
 global ACCEPTED=0
 @showprogress "MC sampling: " for i in 1:SWEEPS
@@ -107,11 +110,14 @@ function test_charge_potential(state::MCState, z::Float64, test_charge::Float64)
     # 2. Ion-ion interactions (average over existing ions) (Eqn 9, effectively)
     r_diff = Vector{Float64}(undef, 3)
     for i in 1:state.N
-        r_diff[1:2] .= state.positions[1:2,i]
-        r_diff[3] = state.positions[3,i] - z
-        ρ = sqrt(r_diff[1]^2 + r_diff[2]^2)
-        V_total += state.charges[i] * V(z, WaterRegion(), WaterRegion(), 
-            ρ=ρ, t=5e-9, h=z, NMAX=10)
+        # Include central cell and nearest neighbors in x,y
+        for dx in (-1,0,1), dy in (-1,0,1)
+            r_diff[1] = state.positions[1,i] + dx*state.L[1]
+            r_diff[2] = state.positions[2,i] + dy*state.L[2]
+            ρ = sqrt(r_diff[1]^2 + r_diff[2]^2)
+            V_total += state.charges[i] * V(z, WaterRegion(), WaterRegion(), 
+                ρ=ρ, t=5e-9, h=z, NMAX=10)
+        end
     end
     
     # 3. Self potential (Eqn 35)
