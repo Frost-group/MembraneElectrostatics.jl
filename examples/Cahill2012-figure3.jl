@@ -25,12 +25,12 @@ t = 5nm # membrane thickness - does this get passed through?
 
 
 # mini system, because of the O(N^2) cost of the explicit Coulomb pair sum #_#
-# charges=vcat(ones(90), -ones(85))
-# box=(10nm,10nm,10nm)
+charges=vcat(ones(90), -ones(85))
+box=(10nm,10nm,10nm)
 
 # midi system
-charges=vcat(ones(90*4), -ones(85*4))
-box=(20nm,20nm,10nm)
+# charges=vcat(ones(90*4), -ones(85*4))
+# box=(20nm,20nm,10nm)
 
 # Full system
 # charges = vcat(ones(2258), -ones(2115))
@@ -46,7 +46,7 @@ state = MembraneElectrostatics.MCState(charges, box)
 # allowed for thermalization. Four of the runs collected data for an additional
 # 50_000 sweeps; the other four for an additional 9_000 sweeps.
 
-SWEEPS=23_000
+SWEEPS=10_000
 
 global ACCEPTED=0
 @showprogress "MC sampling: " for i in 1:SWEEPS
@@ -104,6 +104,10 @@ z_values = range(0, 10e-9, length=100)
 function test_charge_potential(state::MCState, z::Float64, test_charge::Float64)
     V_total = 0.0
     
+    # eval at middle of box ?
+    X=state.L[1]/2
+    Y=state.L[2]/2
+
     # 1. Membrane surface charge contribution (Eqn 27)
     V_total += z * state.σ / ϵ_w
     
@@ -112,8 +116,8 @@ function test_charge_potential(state::MCState, z::Float64, test_charge::Float64)
     for i in 1:state.N
         # Include central cell and nearest neighbors in x,y
         for dx in (-1,0,1), dy in (-1,0,1)
-            r_diff[1] = state.positions[1,i] + dx*state.L[1]
-            r_diff[2] = state.positions[2,i] + dy*state.L[2]
+            r_diff[1] = X - state.positions[1,i] + dx*state.L[1]
+            r_diff[2] = Y - state.positions[2,i] + dy*state.L[2]
             ρ = sqrt(r_diff[1]^2 + r_diff[2]^2)
             V_total += state.charges[i] * V(z, WaterRegion(), WaterRegion(), 
                 ρ=ρ, t=5e-9, h=z, NMAX=10)

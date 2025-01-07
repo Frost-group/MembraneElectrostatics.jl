@@ -50,7 +50,8 @@ function calc_perion_energy(S::MCState, i::Int; cutoff=2nm)
     E = 0.0 # energy units of eV implicit everywhere
    
     qi=S.charges[i] # to multiply by all the calculation potentials V
-    
+    z=S.positions[3,i]
+
 # Screened Coulomb interaction, mediated by the image charges induced in the membrane, between all pairs of ions, via Eqn 9
     r_diff=Vector{Float64}(undef,3) # preallocate for loop
     for j in 1:S.N
@@ -58,13 +59,13 @@ function calc_perion_energy(S::MCState, i::Int; cutoff=2nm)
             continue
         end 
 
-        z=S.positions[3,i]
+        qj=S.charges[j]
 
-        # Include central cell and nearest neighbors in x,y
-        for dx in (-1,0,1), dy in (-1,0,1) # 10x slow down, natch :/
+        # Include central cell and nearest neighbors in x,y; naive approach therefore gives a 9x slowdown
+        for dx in (-1,0,1), dy in (-1,0,1)
             # Offset positions by lattice vectors
-            r_diff[1] = S.positions[1,i] + dx*S.L[1] 
-            r_diff[2] = S.positions[2,i] + dy*S.L[2]
+            r_diff[1] = S.positions[1,i] - (S.positions[1,j] + dx*S.L[1])
+            r_diff[2] = S.positions[2,i] - (S.positions[2,j] + dy*S.L[2])
 
             ρ=sqrt(r_diff[1]^2 + r_diff[2]^2) # distance in plane
             #  implement a cutoff...
@@ -72,10 +73,11 @@ function calc_perion_energy(S::MCState, i::Int; cutoff=2nm)
                 continue
             end
 
+            h=S.positions[3,j] # vertical position of jth ion
             #   What would Cahill do? (WWCD?)
             #   "I went toward you, endlessly toward the light"
             # Potential from image charges generated in membrane by the charge at r_diff
-            E+=qi * V(z,WaterRegion(),WaterRegion(), ρ=ρ, t=5nm, h=z, NMAX=10) 
+            E+=qi * qj * V(z,WaterRegion(),WaterRegion(), ρ=ρ, t=5nm, h=h, NMAX=20) 
                 # Uhm, are the units correct here? 
         end
     end
@@ -83,13 +85,12 @@ function calc_perion_energy(S::MCState, i::Int; cutoff=2nm)
     # Electrostatic interaction between ions and membrane charge, see (27) in Cahill
 # constant E-field -> potential V = z * Ef = z * σ / ϵ_w
 # units of eV presumed ? Is that the correct dielectric constant?
-    E += qi * ( S.positions[3,i] * S.σ / ϵ_w ) 
+    E += qi * ( z * S.σ / ϵ_w ) 
 
 # recurrance formulae for ion self-interaction with slab dielectrics (membrane); Eqn 9.
-    z=S.positions[3,i]
     # currently eval by taking ρ to very large... I think this is the same as Eqn. 35
     #   FIXME: Actually implement the more simple Eqn. 35 (And maybe check understanding at same time) 
-    E+=qi * V(z,WaterRegion(),WaterRegion(), ρ=100.0, t=5nm, h=z, NMAX=10)
+    E+=qi * qi * V(z,WaterRegion(),WaterRegion(), ρ=100.0, t=5nm, h=z, NMAX=20)
 
     return E
 end
@@ -106,12 +107,17 @@ function mc_sweep!(S::MCState; δr=0.5nm, GLOBAL_ENERGY=false)
         # Trial move - randn displacement
         S.positions[:,i] += δr * randn(3)
         
+        # Hard wall in Z; stop ions from penetrating membrane / leaving 10 nm box (magic number, FIXME)
         if S.positions[3,i] < 0.0 # stop ions from penetrating membrane
             S.positions[3,i] = 0.0
         end
         if S.positions[3,i] > 10.0nm
             S.positions[3,i] = 10.0nm # stop them escaping
         end
+
+        # PBCs in X and Y; project back into box
+        S.positions[1,i] = mod(S.positions[1,i], S.L[1])
+        S.positions[2,i] = mod(S.positions[2,i], S.L[2])
         
         # Calculate new energy
         E_new = GLOBAL_ENERGY ? calc_global_energy(S) : calc_perion_energy(S,i)
