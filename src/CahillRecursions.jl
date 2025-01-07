@@ -31,12 +31,25 @@ const ϵ_cl = (ϵ_c + ϵ_l)/2
 # Charge in water
 # V^w_w, Eqn 9 in Cahill2012
 function V(z, charge::WaterRegion, eval::WaterRegion; ρ, t, h, NMAX=1000)
+    if ρ ≈ 0
+        return V_w_w_selfinteraction(z, charge, eval; t=t, NMAX=NMAX)
+    end
+
     q/(4π*ϵ_w) * (
         1/√(ρ^2+(z-h)^2) 
         + p/√(ρ^2+(z+h)^2)
         - p′*(1-p^2) * 
         sum( (p*p′^(n-1)/(√(ρ^2 + (z + 2n*t + h)^2))) 
             for n in 1:NMAX) )
+end
+
+# Eqn 35; special case of 9 for ρ=0, self-interaction / on-axis evaluation
+function V_w_w_selfinteraction(z, ::WaterRegion, ::WaterRegion; t, NMAX=1000)
+    q/(4π*ϵ_w) * (
+        p/abs(2z) - 
+        (ϵ_w*ϵ_l/ϵ_wl^2) * 
+        sum(p^(n-1)*p′^n / abs(2z + 2n*t) for n in 1:NMAX)
+    )
 end
 
 # V_^w_l, Eqn 10 in Cahill2012
