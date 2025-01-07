@@ -37,52 +37,16 @@ end
 
 # TODO: rewrite a function that just calculates 'atoms in molecules' sum for 'i' 
 #  Nature of the loop suggests this should be fine. (Classical physics baby!)
-#  WARNING: I think this is mostly WRONG!
 function calc_global_energy(S::MCState)
-    E = 0.0 # eV implicit everywhere
-    
-    # Screened Coulomb interaction between all pairs of ions
-    E_C=0.0
-    r_diff=Vector{Float64}(undef,3) # preallocate for loop
-    for i in 1:S.N
-        for j in (i+1):S.N # avoid double counting and self-interaction
-            # Distance between i and j
-            r_diff .= view(S.positions,:,i) - view(S.positions,:,j) # views to avoid slices
-            d=norm(r_diff)
 
-            # TODO: Should include replicas in X&Y for PBCs!
-            
-            # Calculate potential energy between pair
-            #  ASSUMES WATER BETWEEN ALL IONS
-            #   What would Cahill do? (WWCD?)
-            E_C += S.charges[i] * S.charges[j] / d 
-                # Uhm, are the units correct here? 
-        end
-    end
-    E *= E_C* q/(4π*ϵ_w) 
+#  WARNING: I think this is mostly WRONG!
+exception("calc_global_energy is not implemented")
 
-    # Electrostatic interaction between ions and membrane charge, see (27) in Cahill
-    for i in 1:S.N
-        E += S.positions[3,i] * S.charges[i] * S.σ / ϵ_w
-        # Constant E-field -> potential proport to z, units of eV
-    end
-
-    # Now recurrance formulae; Eqn 9.
-    for i in 1:S.N
-        # which one to use?
-        #  what about other charges interacting with the images charges? 
-        #  Or would that be double counting?
-        # function V(z, charge::WaterRegion, eval::WaterRegion; ρ, t, h, NMAX=1000)
-        z=S.positions[3,i]
-        E+=V(z,WaterRegion(),WaterRegion(), ρ=0.0, t=5nm, h=z, NMAX=100)
-    end
-
-    return E
 end
 
 #  Nature of the loop in the global energy function suggests this should be fine. 
 #     (Classical physics baby!)
-function calc_perion_energy(S::MCState, i::Int)
+function calc_perion_energy(S::MCState, i::Int; cutoff=2nm)
     E = 0.0 # energy units of eV implicit everywhere
    
     qi=S.charges[i] # to multiply by all the calculation potentials V
@@ -94,18 +58,26 @@ function calc_perion_energy(S::MCState, i::Int)
             continue
         end 
 
-        # Distance between i and j
-        r_diff .= view(S.positions,:,i) - view(S.positions,:,j) # views to avoid slices
         z=S.positions[3,i]
-        ρ=sqrt(r_diff[1]^2 + r_diff[2]^2) # distance in plane
 
-        # TODO: Should include replicas in X&Y for PBCs!
+        # Include central cell and nearest neighbors in x,y
+        for dx in (-1,0,1), dy in (-1,0,1) # 10x slow down, natch :/
+            # Offset positions by lattice vectors
+            r_diff[1] = S.positions[1,i] + dx*S.L[1] 
+            r_diff[2] = S.positions[2,i] + dy*S.L[2]
 
-        #   What would Cahill do? (WWCD?)
-        #   "I went toward you, endlessly toward the light"
-        # Potential from image charges generated in membrane by the charge at r_diff
-        E+=qi * V(z,WaterRegion(),WaterRegion(), ρ=ρ, t=5nm, h=z, NMAX=10) 
-            # Uhm, are the units correct here? 
+            ρ=sqrt(r_diff[1]^2 + r_diff[2]^2) # distance in plane
+            #  implement a cutoff...
+            if ρ > cutoff
+                continue
+            end
+
+            #   What would Cahill do? (WWCD?)
+            #   "I went toward you, endlessly toward the light"
+            # Potential from image charges generated in membrane by the charge at r_diff
+            E+=qi * V(z,WaterRegion(),WaterRegion(), ρ=ρ, t=5nm, h=z, NMAX=10) 
+                # Uhm, are the units correct here? 
+        end
     end
 
     # Electrostatic interaction between ions and membrane charge, see (27) in Cahill
