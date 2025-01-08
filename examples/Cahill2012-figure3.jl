@@ -122,8 +122,10 @@ function test_charge_potential(state::MCState, z::Float64, test_charge::Float64;
     x_points = range(0, state.L[1], length=n)
     y_points = range(0, state.L[2], length=n)
     
-    V_no_self_total = 0.0
-    V_with_self_total = 0.0
+    V_full = 0.0        # correlation + self
+    V_nocorr = 0.0      # no correlation + self
+    V_noself = 0.0      # correlation + no self
+    V_bare = 0.0        # no correlation + no self
     
     # Average over grid points
     @showprogress "Calculating potential at z=$(z/1e-9)nm: " for x in x_points, y in y_points
@@ -136,30 +138,48 @@ function test_charge_potential(state::MCState, z::Float64, test_charge::Float64;
             state.σ
         )
         
-        # Calculate potential energy of test charge (last particle)
-        V_no_self_total += calc_perion_energy(temp_state, temp_state.N, 
+        # Calculate potential energy of test charge (last particle) in different ways
+        V_full += calc_perion_energy(temp_state, temp_state.N, 
+            CORRELATION=true, 
+            ELECTROSTATIC=true, 
+            SELF_INTERACTION=true) / test_charge
+
+        V_nocorr += calc_perion_energy(temp_state, temp_state.N,
+            CORRELATION=false, 
+            ELECTROSTATIC=true, 
+            SELF_INTERACTION=true) / test_charge
+
+        V_noself += calc_perion_energy(temp_state, temp_state.N,
             CORRELATION=true, 
             ELECTROSTATIC=true, 
             SELF_INTERACTION=false) / test_charge
 
-        V_with_self_total += calc_perion_energy(temp_state, temp_state.N,
-            CORRELATION=true, 
+        V_bare += calc_perion_energy(temp_state, temp_state.N,
+            CORRELATION=false, 
             ELECTROSTATIC=true, 
-            SELF_INTERACTION=true) / test_charge
+            SELF_INTERACTION=false) / test_charge
     end
     
     # Return averaged potentials
-    return V_no_self_total/(n*n), V_with_self_total/(n*n)
+    return V_full/(n*n), V_nocorr/(n*n), V_noself/(n*n), V_bare/(n*n)
 end
 
 # Calculate potentials at each z
-V_K = zeros(length(z_values))
-V_Cl = zeros(length(z_values))
-V_no_self = zeros(length(z_values))
+V_K_full = zeros(length(z_values))
+V_K_nocorr = zeros(length(z_values))
+V_K_noself = zeros(length(z_values))
+V_K_bare = zeros(length(z_values))
+
+V_Cl_full = zeros(length(z_values))
+V_Cl_nocorr = zeros(length(z_values))
+V_Cl_noself = zeros(length(z_values))
+V_Cl_bare = zeros(length(z_values))
 
 @showprogress "Calculating potentials: " for (i, z) in enumerate(z_values)
-    V_no_self[i], V_K[i] = test_charge_potential(state, z, 1.0)
-    _, V_Cl[i] = test_charge_potential(state, z, -1.0)
+    # K+ potentials
+    V_K_full[i], V_K_nocorr[i], V_K_noself[i], V_K_bare[i] = test_charge_potential(state, z, 1.0)
+    # Cl- potentials
+    V_Cl_full[i], V_Cl_nocorr[i], V_Cl_noself[i], V_Cl_bare[i] = test_charge_potential(state, z, -1.0)
 end
 
 # Rescale to nm for plotting
@@ -170,9 +190,17 @@ z_nm = z_values ./ 1e-9
 @gp :- "set ylabel 'Potential (V)'"
 @gp :- "set key right"
 
-@gp z_nm V_K "with lines title 'K^+ potential' lw 2 lc rgb '#E41A1C'"
-@gp :- z_nm V_Cl "with lines title 'Cl^- potential' dt 2 lw 2 lc rgb '#377EB8'"
-@gp :- z_nm V_no_self "with lines title 'Without self-potential' dt 3 lw 2 lc rgb '#984EA3'"
+# K+ potentials
+@gp z_nm V_K_full "with lines title 'K^+ (full)' lw 2 lc rgb '#E41A1C'"
+@gp :- z_nm V_K_nocorr "with lines title 'K^+ (no corr)' dt 2 lw 2 lc rgb '#E41A1C'"
+@gp :- z_nm V_K_noself "with lines title 'K^+ (no self)' dt 3 lw 2 lc rgb '#E41A1C'"
+@gp :- z_nm V_K_bare "with lines title 'K^+ (bare)' dt 4 lw 2 lc rgb '#E41A1C'"
+
+# Cl- potentials
+@gp :- z_nm V_Cl_full "with lines title 'Cl^- (full)' lw 2 lc rgb '#377EB8'"
+@gp :- z_nm V_Cl_nocorr "with lines title 'Cl^- (no corr)' dt 2 lw 2 lc rgb '#377EB8'"
+@gp :- z_nm V_Cl_noself "with lines title 'Cl^- (no self)' dt 3 lw 2 lc rgb '#377EB8'"
+@gp :- z_nm V_Cl_bare "with lines title 'Cl^- (bare)' dt 4 lw 2 lc rgb '#377EB8'"
 
 Gnuplot.save("figure4.png", term="pngcairo size 800,600 enhanced font 'Helvetica,14'")
 Gnuplot.save("figure4.pdf", term="pdfcairo size 3in,2in enhanced font 'Helvetica,9'")
