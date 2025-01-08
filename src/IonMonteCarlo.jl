@@ -46,7 +46,7 @@ end
 
 #  Nature of the loop in the global energy function suggests this should be fine. 
 #     (Classical physics baby!)
-function calc_perion_energy(S::MCState, i::Int; cutoff=2nm, CORRELATION=true, ELECTROSTATIC=true, SELF_INTERACTION=true)
+function calc_perion_energy(S::MCState, i::Int; cutoff=5nm, CORRELATION=true, ELECTROSTATIC=false, SELF_INTERACTION=true)
     E = 0.0 # energy units of eV implicit everywhere
    
     qi=S.charges[i] # to multiply by all the calculation potentials V
@@ -78,23 +78,23 @@ if CORRELATION
             #   What would Cahill do? (WWCD?)
             #   "I went toward you, endlessly toward the light"
             # Potential from image charges generated in membrane by the charge at r_diff
-            E+=qi * qj * V(z,WaterRegion(),WaterRegion(), ρ=ρ, t=5nm, h=h, NMAX=100) 
+            E+= qi * qj * V(z,WaterRegion(),WaterRegion(), ρ=ρ, t=5nm, h=h, NMAX=10) 
                 # Uhm, are the units correct here? 
         end
     end
 end
 
 # Electrostatic interaction between ions and membrane charge, see (27) in Cahill
-# constant E-field -> potential V = z * Ef = z * σ / ϵ_w
+# constant E-field -> potential V = z * Ef = z * σ / (ϵ_w+ϵ_c)
 # units of eV presumed ? Is that the correct dielectric constant?
 if ELECTROSTATIC
-    E += qi * (z * S.σ / ϵ_w ) 
+    E += qi * (z * S.σ / (ϵ_w+ϵ_c) ) 
 end
 
 # recurrance formulae for ion self-interaction with slab dielectrics (membrane); Eqn 9.
 # now detects ρ≈0 and runs the dedicated (no infinite 1/r term) code
 if SELF_INTERACTION
-    E+=qi * qi * V(z,WaterRegion(),WaterRegion(), ρ=0.0, t=5nm, h=z, NMAX=100)
+    E+= qi * qi * V(z,WaterRegion(),WaterRegion(), ρ=0.0, t=5nm, h=z, NMAX=20)
 end
 
     return E
@@ -113,11 +113,10 @@ function mc_sweep!(S::MCState; δr=0.5nm, GLOBAL_ENERGY=false)
         S.positions[:,i] += δr * randn(3)
         
         # Hard wall in Z; stop ions from penetrating membrane / leaving 10 nm box (magic number, FIXME)
-        if S.positions[3,i] < 0.0 # stop ions from penetrating membrane
-            S.positions[3,i] = 0.0
-        end
-        if S.positions[3,i] > 10.0nm
-            S.positions[3,i] = 10.0nm # stop them escaping
+        # Do this by REJECTING the move if it's outside the box; setting to 0 or 10 nm seemed to introduce artefacts 
+        if S.positions[3,i] < 0.0 || S.positions[3,i] > 10.0nm
+            S.positions[:,i] = r_prev
+            continue
         end
 
         # PBCs in X and Y; project back into box
