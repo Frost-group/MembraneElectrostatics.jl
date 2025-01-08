@@ -26,16 +26,18 @@ t = 5nm # membrane thickness - does this get passed through?
 
 
 # mini system, because of the O(N^2) cost of the explicit Coulomb pair sum #_#
-charges=vcat(ones(90), -ones(85))
+charges=vcat(+ones(90), -ones(85))
 box=(10nm,10nm,10nm)
 
+#charges=vcat(-ones(90), +ones(1))
+
 # midi system
-# charges=vcat(ones(90*4), -ones(85*4))
-# box=(20nm,20nm,10nm)
+#charges=vcat(ones(90*4), -ones(85*4))
+#box=(20nm,20nm,10nm)
 
 # Full system
-# charges = vcat(ones(2258), -ones(2115))
-# box = (50nm, 50nm, 10nm)
+#charges = vcat(ones(2258), -ones(2115))
+#box = (50nm, 50nm, 10nm)
 
 state = MembraneElectrostatics.MCState(charges, box)
 # show(state)
@@ -47,13 +49,13 @@ state = MembraneElectrostatics.MCState(charges, box)
 # allowed for thermalization. Four of the runs collected data for an additional
 # 50_000 sweeps; the other four for an additional 9_000 sweeps.
 
-SWEEPS=10_000
+SWEEPS=23_000
 
 global ACCEPTED=0
 @showprogress "MC sampling: " for i in 1:SWEEPS
     global ACCEPTED+=MembraneElectrostatics.mc_sweep!(state)
 end
-show(state)  # Show final state
+#show(state)  # Show final state
 
 println("Accepted $(ACCEPTED) Accepted ratio: $(ACCEPTED/(state.N*SWEEPS))")
 
@@ -74,13 +76,11 @@ println("Accepted $(ACCEPTED) Accepted ratio: $(ACCEPTED/(state.N*SWEEPS))")
 # Plot
 @gp :- "set xlabel 'Distance from membrane (nm)'"
 @gp :- "set ylabel 'Density'"
-@gp :- "set arrow from 0,0 to 0,0.025 nohead lc rgb 'red'"
-@gp :- "set arrow from -5E-9,0 to -5E-9,0.025 nohead lc rgb 'red'"
 
 # Plot histogram directly in Gnuplot
 @gp :- "set style data histograms"
 @gp :- "set style fill solid 0.5"
-@gp :- "set boxwidth 0.2"
+@gp :- "set boxwidth 0.1"
 @gp :- "binwidth = 0.2"  # 10nm/50 bins
 @gp :- "bin(x) = binwidth * floor(x/binwidth)"
 
@@ -88,9 +88,25 @@ println("Accepted $(ACCEPTED) Accepted ratio: $(ACCEPTED/(state.N*SWEEPS))")
 cation_z_nm = state.positions[3, state.charges .== 1.0] ./ 1e-9  # +1 charges
 anion_z_nm = state.positions[3, state.charges .== -1.0] ./ 1e-9  # -1 charges
 
-# Plot both populations separately
-@gp :- cation_z_nm "using (bin(\$1)):(1.0) smooth frequency with boxes title 'Cation density' lc rgb '#E41A1C'"
-@gp :- anion_z_nm "using (bin(\$1)):(1.0) smooth frequency with boxes title 'Anion density' lc rgb '#377EB8'"
+# Plot histograms with offset
+@gp :- cation_z_nm "using (bin(\$1)):(1.0) smooth frequency with boxes title 'Cation density' lc rgb '#E41A1C' fs transparent solid 0.3"
+@gp :- anion_z_nm "using (bin(\$1)+0.1):(1.0) smooth frequency with boxes title 'Anion density' lc rgb '#377EB8' fs transparent solid 0.3"
+
+# Calculate means
+cation_mean = length(cation_z_nm)/50
+anion_mean = length(anion_z_nm)/50
+# Add mean value lines
+@gp :- "set arrow 1 from 0,$cation_mean to 10,$cation_mean nohead lc rgb '#E41A1C' lw 1"
+@gp :- "set arrow 2 from 0,$anion_mean to 10,$anion_mean nohead lc rgb '#377EB8' lw 1"
+
+
+cation_count = length(cation_z_nm)
+anion_count = length(anion_z_nm)
+
+# Add kernel density estimates
+@gp :- "set samples 100"  # Increase smoothness of the kdensity
+@gp :- cation_z_nm "using 1:(1.0/5) smooth kdensity bandwidth 0.2 with lines title 'Cation KDE' lw 2 lc rgb '#E41A1C'"
+@gp :- anion_z_nm "using 1:(1.0/5) smooth kdensity bandwidth 0.2 with lines title 'Anion KDE' lw 2 lc rgb '#377EB8'"
 
 Gnuplot.save("figure3.png", term="pngcairo size 800,600 enhanced font 'Helvetica,14'")
 Gnuplot.save("figure3.pdf", term="pdfcairo size 3in,2in enhanced font 'Helvetica,9'")
@@ -102,29 +118,38 @@ Gnuplot.save("figure3.pdf", term="pdfcairo size 3in,2in enhanced font 'Helvetica
 z_values = range(0, 10e-9, length=100)
 
 # Calculate potentials for K+ and Cl-
-function test_charge_potential(state::MCState, z::Float64, test_charge::Float64)
-    # Create temporary state with test charge at position (X,Y,z)
-    temp_state = MCState(
-        state.N + 1,
-        hcat(state.positions, [state.L[1]/2, state.L[2]/2, z]),
-        vcat(state.charges, test_charge),
-        state.L,
-        state.β,
-        state.σ
-    )
+function test_charge_potential(state::MCState, z::Float64, test_charge::Float64; n=10)
+    x_points = range(0, state.L[1], length=n)
+    y_points = range(0, state.L[2], length=n)
     
-    # Calculate potential energy of test charge (last particle)
-    V_no_self = calc_perion_energy(temp_state, temp_state.N, 
-        CORRELATION=true, 
-        ELECTROSTATIC=true, 
-        SELF_INTERACTION=false) / test_charge
+    V_no_self_total = 0.0
+    V_with_self_total = 0.0
+    
+    # Average over grid points
+    @showprogress "Calculating potential at z=$(z/1e-9)nm: " for x in x_points, y in y_points
+        temp_state = MCState(
+            state.N + 1,
+            hcat(state.positions, [x, y, z]),
+            vcat(state.charges, test_charge),
+            state.L,
+            state.β,
+            state.σ
+        )
+        
+        # Calculate potential energy of test charge (last particle)
+        V_no_self_total += calc_perion_energy(temp_state, temp_state.N, 
+            CORRELATION=true, 
+            ELECTROSTATIC=true, 
+            SELF_INTERACTION=false) / test_charge
 
-    V_with_self = calc_perion_energy(temp_state, temp_state.N,
-        CORRELATION=true, 
-        ELECTROSTATIC=true, 
-        SELF_INTERACTION=true) / test_charge
+        V_with_self_total += calc_perion_energy(temp_state, temp_state.N,
+            CORRELATION=true, 
+            ELECTROSTATIC=true, 
+            SELF_INTERACTION=true) / test_charge
+    end
     
-    return V_no_self, V_with_self
+    # Return averaged potentials
+    return V_no_self_total/(n*n), V_with_self_total/(n*n)
 end
 
 # Calculate potentials at each z
@@ -171,6 +196,6 @@ function debug_energy_components(S::MCState, i::Int)
     println("Self-interaction: ", E_self)
 end
 
-for i in 1:state.N
+ for i in [1,state.N] # just print one +cation and one -anion
     debug_energy_components(state, i)
 end
