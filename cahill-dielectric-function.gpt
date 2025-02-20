@@ -1,0 +1,47 @@
+# Output terminal setup
+set terminal pngcairo enhanced font "Gill Sans,18" color size 800,600
+set output 'cahill-dielectric-function.png'
+
+# Set the plot style
+set style line 1 lc rgb '#FF69B4' lw 4  # Pink line
+set style line 2 lc rgb '#FFA500' lw 4   # Orange line
+
+# Set the axis labels and ranges
+set xlabel 'd, Angstroms'
+set ylabel 'ε'
+set xrange [0:30]
+set yrange [0:250]
+
+set xtics 5
+
+# Define the step functions
+# First function (pink line)
+eps1(x) = (x <= 10) ? 1 : \
+          (x > 10 && x <= 15) ? 4 : \
+          (x > 15 && x <= 20) ? 180 : \
+          (x > 20 && x <= 25) ? 210 : \
+          (x > 25) ? 80 : 1
+
+# Second function (orange line, Cahill simplification)
+eps2(x) = (x <= 15) ? 2 : \
+          (x > 15 && x <= 25) ? 195 : \
+          (x > 25) ? 80 : 1
+
+# Plot settings
+set grid
+set key top left 
+set title 'Dielectric within membrane'
+
+# Explicit labels for important bits 
+set label "water ε = 80" at 22,70 textcolor rgb '#FF69B4'
+set label "ε = 4" at 10,15 textcolor rgb '#FF69B4'
+set label "ε = 1" at 2,10 textcolor rgb '#FF69B4'
+
+set label "ε = 2" at 6,25 textcolor rgb '#FFA500'
+
+
+# Create the plot
+plot eps1(x) title 'Stern and Feller (4 layer membrane)' ls 1, \
+     eps2(x) title 'Cahill (2 layer membrane)' ls 2
+
+
