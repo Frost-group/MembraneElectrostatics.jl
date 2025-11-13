@@ -10,7 +10,8 @@ using ProgressMeter
 
 #######
 # Parameters
-t = 5nm # membrane thickness - does this get passed through?
+# Default liver membrane: ϵ_w=80*ϵ_0, ϵ_l=2*ϵ_0, ϵ_c=80*ϵ_0, t=5nm
+membrane = CAHILL_LIVER
 
 # "In the simulation, I let the potassium and chloride ions move according to a
 # Metropolis algorithm within a box whose width and length were 50 nm and whose
@@ -53,7 +54,7 @@ SWEEPS=23_000
 
 global ACCEPTED=0
 @showprogress "MC sampling: " for i in 1:SWEEPS
-    global ACCEPTED+=MembraneElectrostatics.mc_sweep!(state)
+    global ACCEPTED+=MembraneElectrostatics.mc_sweep!(state, m=membrane)
 end
 #show(state)  # Show final state
 
@@ -118,7 +119,7 @@ Gnuplot.save("figure3.pdf", term="pdfcairo size 3in,2in enhanced font 'Helvetica
 z_values = range(0, 10e-9, length=100)
 
 # Calculate potentials for K+ and Cl-
-function test_charge_potential(state::MCState, z::Float64, test_charge::Float64; n=10)
+function test_charge_potential(state::MCState, z::Float64, test_charge::Float64; n=10, m=CAHILL_LIVER)
     x_points = range(0, state.L[1], length=n)
     y_points = range(0, state.L[2], length=n)
     
@@ -142,22 +143,26 @@ function test_charge_potential(state::MCState, z::Float64, test_charge::Float64;
         V_full += calc_perion_energy(temp_state, temp_state.N, 
             CORRELATION=true, 
             ELECTROSTATIC=true, 
-            SELF_INTERACTION=true) / test_charge
+            SELF_INTERACTION=true, 
+            m=m) / test_charge
 
         V_nocorr += calc_perion_energy(temp_state, temp_state.N,
             CORRELATION=false, 
             ELECTROSTATIC=true, 
-            SELF_INTERACTION=true) / test_charge
+            SELF_INTERACTION=true,
+            m=m) / test_charge
 
         V_noself += calc_perion_energy(temp_state, temp_state.N,
             CORRELATION=true, 
             ELECTROSTATIC=true, 
-            SELF_INTERACTION=false) / test_charge
+            SELF_INTERACTION=false,
+            m=m) / test_charge
 
         V_bare += calc_perion_energy(temp_state, temp_state.N,
             CORRELATION=false, 
             ELECTROSTATIC=true, 
-            SELF_INTERACTION=false) / test_charge
+            SELF_INTERACTION=false,
+            m=m) / test_charge
     end
     
     # Return averaged potentials
@@ -177,9 +182,9 @@ V_Cl_bare = zeros(length(z_values))
 
 @showprogress "Calculating potentials: " for (i, z) in enumerate(z_values)
     # K+ potentials
-    V_K_full[i], V_K_nocorr[i], V_K_noself[i], V_K_bare[i] = test_charge_potential(state, z, 1.0)
+    V_K_full[i], V_K_nocorr[i], V_K_noself[i], V_K_bare[i] = test_charge_potential(state, z, 1.0, m=membrane)
     # Cl- potentials
-    V_Cl_full[i], V_Cl_nocorr[i], V_Cl_noself[i], V_Cl_bare[i] = test_charge_potential(state, z, -1.0)
+    V_Cl_full[i], V_Cl_nocorr[i], V_Cl_noself[i], V_Cl_bare[i] = test_charge_potential(state, z, -1.0, m=membrane)
 end
 
 # Rescale to nm for plotting
@@ -207,17 +212,17 @@ Gnuplot.save("figure4.pdf", term="pdfcairo size 3in,2in enhanced font 'Helvetica
 
 # Hold my beer, I'm going to use printf
 
-function debug_energy_components(S::MCState, i::Int)
+function debug_energy_components(S::MCState, i::Int; m=CAHILL_LIVER)
     println("Ion $i analysis:")
     println("Position: ", S.positions[:,i])
     println("Charge: ", S.charges[i])
     
     E_corr = calc_perion_energy(S, i, CORRELATION=true, 
-                               ELECTROSTATIC=false, SELF_INTERACTION=false)
+                               ELECTROSTATIC=false, SELF_INTERACTION=false, m=m)
     E_elec = calc_perion_energy(S, i, CORRELATION=false, 
-                               ELECTROSTATIC=true, SELF_INTERACTION=false)
+                               ELECTROSTATIC=true, SELF_INTERACTION=false, m=m)
     E_self = calc_perion_energy(S, i, CORRELATION=false, 
-                               ELECTROSTATIC=false, SELF_INTERACTION=true)
+                               ELECTROSTATIC=false, SELF_INTERACTION=true, m=m)
     
     println("Correlation energy: ", E_corr)
     println("Electrostatic energy: ", E_elec)
@@ -225,5 +230,5 @@ function debug_energy_components(S::MCState, i::Int)
 end
 
  for i in [1,state.N] # just print one +cation and one -anion
-    debug_energy_components(state, i)
+    debug_energy_components(state, i, m=membrane)
 end

@@ -7,12 +7,9 @@ using MembraneElectrostatics
 using Gnuplot
 
 # Parameters
-t = 5nm
+membrane = CahillMembrane(t=5nm)
 h = 1nm
-Zs = collect(-(t+5nm):t/100:5nm)
-
-# Calculate potentials
-Vs = [V(z, t=t, h=h) for z in Zs]
+Zs = collect(-(membrane.t+5nm):membrane.t/100:5nm)
 
 # rescued from https://github.com/jarvist/gnuplot-snippets/blob/master/gnuplot-render.gpt 
 @gp "set linetype 1 pi -1 pt 1 lc rgb '#E41A1C' dt solid # red"
@@ -29,11 +26,11 @@ Vs = [V(z, t=t, h=h) for z in Zs]
 @gp :- "set xlabel 'Distance from membrane (nm)'"
 @gp :- "set ylabel 'Potential (V)'"
 @gp :- "set arrow from 0,0 to 0,0.025 nohead lc rgb 'red'"
-@gp :- "set arrow from -5E-9,0 to -5E-9,0.025 nohead lc rgb 'red'"
+@gp :- "set arrow from -$(membrane.t),0 to -$(membrane.t),0.025 nohead lc rgb 'red'"
 
 # Calculate potentials
-for h in [-6nm,1nm]
-    VCs = [V(z, t=t, h=h, NMAX=10) for z in Zs]
+for h in [-6nm, 1nm]
+    VCs = [V(z, h=h, m=membrane, NMAX=10) for z in Zs]
     @gp :- Zs VCs "w l title 'h=$(h/nm) nm'"
 end
 

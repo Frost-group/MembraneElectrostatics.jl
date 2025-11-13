@@ -13,13 +13,12 @@ include("CahillRecursions.jl")
 include("IonMonteCarlo.jl")
 
 # Export constants
-export ε_0, ϵ_0, eV, q, ElectronVolt
-# Material constants
-export ϵ_w, ϵ_l, ϵ_c, nm
+export ε_0, ϵ_0, eV, q, ElectronVolt, nm
 # Export CahillRecursionsfunctions
 export V_ww, V_wl, V_wc, V
 # Export types
 export WaterRegion, LipidRegion, CytosolRegion
+export CahillMembrane, CAHILL_LIVER
 # Export IonMonteCarlo functions
 export MCState, calc_global_energy, calc_perion_energy
 

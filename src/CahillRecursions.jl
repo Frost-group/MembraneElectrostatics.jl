@@ -4,22 +4,30 @@ struct WaterRegion end
 struct LipidRegion end
 struct CytosolRegion end
 
-# Material constants
-"Water absolute dielectric."
-const ϵ_w = 80 * ϵ_0
-"Lipid absolute dielectric."
-const ϵ_l = 2 * ϵ_0
-"Cytosol absolute dielectric."
-const ϵ_c = 80 * ϵ_0
-
 # Distance scaling
 const nm = 1E-9
 
-# Helper constants
-const p = (ϵ_w - ϵ_l)/(ϵ_w + ϵ_l)
-const p′ = (ϵ_c - ϵ_l)/(ϵ_c + ϵ_l)
-const ϵ_wl = (ϵ_w + ϵ_l)/2
-const ϵ_cl = (ϵ_c + ϵ_l)/2
+# Membrane type struct encapsulating dielectric properties and thickness
+struct CahillMembrane
+    ϵ_w::Float64
+    ϵ_l::Float64
+    ϵ_c::Float64
+    t::Float64
+    p::Float64
+    p′::Float64
+    ϵ_wl::Float64
+    ϵ_cl::Float64
+    
+    function CahillMembrane(; ϵ_w=80*ϵ_0, ϵ_l=2*ϵ_0, ϵ_c=80*ϵ_0, t=5nm)
+        p = (ϵ_w - ϵ_l)/(ϵ_w + ϵ_l)
+        p′ = (ϵ_c - ϵ_l)/(ϵ_c + ϵ_l)
+        ϵ_wl = (ϵ_w + ϵ_l)/2
+        ϵ_cl = (ϵ_c + ϵ_l)/2
+        new(ϵ_w, ϵ_l, ϵ_c, t, p, p′, ϵ_wl, ϵ_cl)
+    end
+end
+
+const CAHILL_LIVER = CahillMembrane()
 
 # Main potential functions
 # Cahill's Nomenclature:
@@ -30,118 +38,118 @@ const ϵ_cl = (ϵ_c + ϵ_l)/2
 
 # Charge in water
 # V^w_w, Eqn 9 in Cahill2012
-function V(z, charge::WaterRegion, eval::WaterRegion; ρ, t, h, NMAX=1000)
+function V(z, charge::WaterRegion, eval::WaterRegion; ρ, t, h, m::CahillMembrane, NMAX=1000)
     if ρ ≈ 0
-        return V_w_w_selfinteraction(z, charge, eval; t=t, NMAX=NMAX)
+        return V_w_w_selfinteraction(z, charge, eval; t=t, m=m, NMAX=NMAX)
     end
 
-    q/(4π*ϵ_w) * (
+    q/(4π*m.ϵ_w) * (
         1/√(ρ^2+(z-h)^2) 
-        + p/√(ρ^2+(z+h)^2)
-        - p′*(1-p^2) * 
-        sum( (p*p′^(n-1)/(√(ρ^2 + (z + 2n*t + h)^2))) 
+        + m.p/√(ρ^2+(z+h)^2)
+        - m.p′*(1-m.p^2) * 
+        sum( (m.p*m.p′^(n-1)/(√(ρ^2 + (z + 2n*t + h)^2))) 
             for n in 1:NMAX) )
 end
 
 # Eqn 35; special case of 9 for ρ=0, self-interaction / on-axis evaluation
-function V_w_w_selfinteraction(z, ::WaterRegion, ::WaterRegion; t, NMAX=1000)
-    q/(4π*ϵ_w) * (
-        p/abs(2z) - 
-        (ϵ_w*ϵ_l/ϵ_wl^2) * 
-        sum(p^(n-1)*p′^n / abs(2z + 2n*t) for n in 1:NMAX)
+function V_w_w_selfinteraction(z, ::WaterRegion, ::WaterRegion; t, m::CahillMembrane, NMAX=1000)
+    q/(4π*m.ϵ_w) * (
+        m.p/abs(2z) - 
+        (m.ϵ_w*m.ϵ_l/m.ϵ_wl^2) * 
+        sum(m.p^(n-1)*m.p′^n / abs(2z + 2n*t) for n in 1:NMAX)
     )
 end
 
 # V_^w_l, Eqn 10 in Cahill2012
-function V(z, charge::WaterRegion, eval::LipidRegion; ρ, t, h, NMAX=1000)
-    q/(4π*ϵ_wl) * 
+function V(z, charge::WaterRegion, eval::LipidRegion; ρ, t, h, m::CahillMembrane, NMAX=1000)
+    q/(4π*m.ϵ_wl) * 
     sum(
-        ((p*p′)^n * (1/√(ρ^2 + (z - 2n*t - h)^2) 
-          - p′/√(ρ^2 + (z + 2*(n+1)*t + h)^2)))
+        ((m.p*m.p′)^n * (1/√(ρ^2 + (z - 2n*t - h)^2) 
+          - m.p′/√(ρ^2 + (z + 2*(n+1)*t + h)^2)))
          for n in 0:NMAX)
 end
 
 # V_^w_c, Eqn 11 in Cahill2012
-function V(z, charge::WaterRegion, eval::CytosolRegion; ρ, t, h, NMAX=1000)
-    q*ϵ_l/(4π*ϵ_wl*ϵ_cl) * 
+function V(z, charge::WaterRegion, eval::CytosolRegion; ρ, t, h, m::CahillMembrane, NMAX=1000)
+    q*m.ϵ_l/(4π*m.ϵ_wl*m.ϵ_cl) * 
     sum(
-        ((p*p′)^n / √(ρ^2 + (z - 2n*t - h)^2)) 
+        ((m.p*m.p′)^n / √(ρ^2 + (z - 2n*t - h)^2)) 
             for n in 0:NMAX)
 end
 
 # Charge in lipid
 # V_^l_w, Eqn 15 in Cahill2012
-function V(z, charge::LipidRegion, eval::WaterRegion; ρ, t, h, NMAX=1000)
-    q/(4π*ϵ_wl) * (
-        sum((p*p′)^n / √(ρ^2 + (z + 2n*t - h)^2) for n in 0:NMAX) -
-        sum(p′ * (p*p′)^n / √(ρ^2 + (z + 2(n+1)*t + h)^2) for n in 0:NMAX)
+function V(z, charge::LipidRegion, eval::WaterRegion; ρ, t, h, m::CahillMembrane, NMAX=1000)
+    q/(4π*m.ϵ_wl) * (
+        sum((m.p*m.p′)^n / √(ρ^2 + (z + 2n*t - h)^2) for n in 0:NMAX) -
+        sum(m.p′ * (m.p*m.p′)^n / √(ρ^2 + (z + 2(n+1)*t + h)^2) for n in 0:NMAX)
     )
 end
 
 # V_^l_l, Eqn 16 in Cahill2012
-function V(z, charge::LipidRegion, eval::LipidRegion; ρ, t, h, NMAX=1000)
-    q/(4π*ϵ_l) * (
-        sum((p*p′)^abs(n) / √(ρ^2 + (z - 2n*t - h)^2) for n in -NMAX:NMAX) -
-        sum(p*(p*p′)^n / √(ρ^2 + (z - 2n*t + h)^2) for n in 0:NMAX) -
-        sum(p′*(p*p′)^n / √(ρ^2 + (z + 2(n+1)*t + h)^2) for n in 0:NMAX)
+function V(z, charge::LipidRegion, eval::LipidRegion; ρ, t, h, m::CahillMembrane, NMAX=1000)
+    q/(4π*m.ϵ_l) * (
+        sum((m.p*m.p′)^abs(n) / √(ρ^2 + (z - 2n*t - h)^2) for n in -NMAX:NMAX) -
+        sum(m.p*(m.p*m.p′)^n / √(ρ^2 + (z - 2n*t + h)^2) for n in 0:NMAX) -
+        sum(m.p′*(m.p*m.p′)^n / √(ρ^2 + (z + 2(n+1)*t + h)^2) for n in 0:NMAX)
     )
 end
 
 # V_^l_c, Eqn 17 in Cahill2012
-function V(z, charge::LipidRegion, eval::CytosolRegion; ρ, t, h, NMAX=1000)
-    q/(4π*ϵ_cl) * sum(
-        (p*p′)^n * (
+function V(z, charge::LipidRegion, eval::CytosolRegion; ρ, t, h, m::CahillMembrane, NMAX=1000)
+    q/(4π*m.ϵ_cl) * sum(
+        (m.p*m.p′)^n * (
             1/√(ρ^2 + (z - 2n*t - h)^2) -
-            p/√(ρ^2 + (z - 2n*t + h)^2)
+            m.p/√(ρ^2 + (z - 2n*t + h)^2)
         ) for n in 0:NMAX
     )
 end
 
 # Charge in cytosol
 # V_^c_w, Eqn 21 in Cahill2012
-function V(z, charge::CytosolRegion, eval::WaterRegion; ρ, t, h, NMAX=1000)
-    q*ϵ_l/(4π*ϵ_wl*ϵ_cl) * 
+function V(z, charge::CytosolRegion, eval::WaterRegion; ρ, t, h, m::CahillMembrane, NMAX=1000)
+    q*m.ϵ_l/(4π*m.ϵ_wl*m.ϵ_cl) * 
     sum(
-        (p*p′)^n / √(ρ^2 + (z + 2n*t - h)^2)
+        (m.p*m.p′)^n / √(ρ^2 + (z + 2n*t - h)^2)
         for n in 0:NMAX
     )
 end
 
 # V_^c_l, Eqn 22 in Cahill2012
-function V(z, charge::CytosolRegion, eval::LipidRegion; ρ, t, h, NMAX=1000)
-    q/(4π*ϵ_cl) * (
-        sum((p*p′)^n / √(ρ^2 + (z - h + 2n*t)^2) for n in 0:NMAX) -
-        p * sum((p*p′)^n / √(ρ^2 + (z + h - 2n*t)^2) for n in 0:NMAX)
+function V(z, charge::CytosolRegion, eval::LipidRegion; ρ, t, h, m::CahillMembrane, NMAX=1000)
+    q/(4π*m.ϵ_cl) * (
+        sum((m.p*m.p′)^n / √(ρ^2 + (z - h + 2n*t)^2) for n in 0:NMAX) -
+        m.p * sum((m.p*m.p′)^n / √(ρ^2 + (z + h - 2n*t)^2) for n in 0:NMAX)
     )
 end
 
 # V_^c_c, Eqn 23 in Cahill2012
-function V(z, charge::CytosolRegion, eval::CytosolRegion; ρ, t, h, NMAX=1000)
-    q/(4π*ϵ_c) * (
+function V(z, charge::CytosolRegion, eval::CytosolRegion; ρ, t, h, m::CahillMembrane, NMAX=1000)
+    q/(4π*m.ϵ_c) * (
         1/√(ρ^2+(z-h)^2) +
-        p′/√(ρ^2 + (z + h + 2t)^2) -
-        p*(1 - p′^2) * sum(
-            (p*p′)^n / √(ρ^2 + (z - 2n*t - h)^2)
+        m.p′/√(ρ^2 + (z + h + 2t)^2) -
+        m.p*(1 - m.p′^2) * sum(
+            (m.p*m.p′)^n / √(ρ^2 + (z - 2n*t - h)^2)
             for n in 0:NMAX
         )
     )
 end
 
 # Helper functions to determine regions
-function charge_region(h, t)    
+function charge_region(h, m::CahillMembrane)    
     if h > 0
         WaterRegion()
-    elseif h >= -t
+    elseif h >= -m.t
         LipidRegion()
     else
         CytosolRegion()
     end
 end
 
-function eval_region(z, t)
+function eval_region(z, m::CahillMembrane)
     if z > 0
         WaterRegion()
-    elseif z >= -t
+    elseif z >= -m.t
         LipidRegion()
     else
         CytosolRegion()
@@ -149,16 +157,16 @@ function eval_region(z, t)
 end
 
 """
-    V(z; ρ=sqrt(0.707nm^2+0.707nm^2), t=5nm, h=1nm, NMAX=1000)
+    V(z; ρ=sqrt(0.707nm^2+0.707nm^2), h=1nm, m=CAHILL_LIVER, NMAX=1000)
 
-Calculate potential at position z, with charge at position h, and membrane thickness t.
+Calculate potential at position z, with charge at position h, using membrane type m.
 
-Dispatch is made to the correct V_{w,l,c}{w,l,c} function from Cahill's paper, based on the numeric value of h and z relative to t.
+Dispatch is made to the correct V_{w,l,c}{w,l,c} function from Cahill's paper, based on the numeric value of h and z relative to membrane thickness.
 
 NMAX controls the convergence of infinite sums (Cahill uses NMAX=1000).
 """
-function V(z; ρ=sqrt(0.707nm^2+0.707nm^2), t=5nm, h=1nm, NMAX=1000)
-    charge = charge_region(h, t)
-    eval = eval_region(z, t)
-    V(z, charge, eval; ρ=ρ, t=t, h=h, NMAX=NMAX)
+function V(z; ρ=sqrt(0.707nm^2+0.707nm^2), h=1nm, m::CahillMembrane=CAHILL_LIVER, NMAX=1000)
+    charge = charge_region(h, m)
+    eval = eval_region(z, m)
+    V(z, charge, eval; ρ=ρ, t=m.t, h=h, m=m, NMAX=NMAX)
 end
