@@ -47,7 +47,7 @@ function V(z, charge::WaterRegion, eval::WaterRegion; ρ, t, h, m::CahillMembran
         1/√(ρ^2+(z-h)^2) 
         + m.p/√(ρ^2+(z+h)^2)
         - m.p′*(1-m.p^2) * 
-        sum( (m.p*m.p′^(n-1)/(√(ρ^2 + (z + 2n*t + h)^2))) 
+        sum( ((m.p*m.p′)^(n-1)/(√(ρ^2 + (z + 2n*t + h)^2))) 
             for n in 1:NMAX) )
 end
 
@@ -157,7 +157,7 @@ function eval_region(z, m::CahillMembrane)
 end
 
 """
-    V(z; ρ=sqrt(0.707nm^2+0.707nm^2), h=1nm, m=CAHILL_LIVER, NMAX=1000)
+    V(z; ρ=1nm, h=1nm, m=CAHILL_LIVER, NMAX=1000)
 
 Calculate potential at position z, with charge at position h, using membrane type m.
 
@@ -165,7 +165,7 @@ Dispatch is made to the correct V_{w,l,c}{w,l,c} function from Cahill's paper, b
 
 NMAX controls the convergence of infinite sums (Cahill uses NMAX=1000).
 """
-function V(z; ρ=sqrt(0.707nm^2+0.707nm^2), h=1nm, m::CahillMembrane=CAHILL_LIVER, NMAX=1000)
+function V(z; ρ=1nm, h=1nm, m::CahillMembrane=CAHILL_LIVER, NMAX=1000)
     charge = charge_region(h, m)
     eval = eval_region(z, m)
     V(z, charge, eval; ρ=ρ, t=m.t, h=h, m=m, NMAX=NMAX)
