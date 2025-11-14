@@ -7,7 +7,7 @@ using MembraneElectrostatics
 using Gnuplot
 
 # Parameters
-membranes = [CahillMembrane(t=5nm), CahillMembrane(t=10nm)]
+membranes = [CahillMembrane(t=5nm), CahillMembrane(t=10nm), CahillMembrane(t=14nm, ϵ_l=13.6*ϵ_0)]
 
 h = 1nm
 
