@@ -12,15 +12,15 @@ struct MCState
     σ::Float64                         # Surface charge density
 end
 """
-    MCState(charges::Vector{Float64}, L; T::Float64=300.0)
+    MCState(charges::Vector{Float64}, L; T::Float64=310.15)
 
 Initialize an (ion) Monte Carlo simulation state given charges and box size (scalar, or 3d tuple (X,Y,Z)).
 
 Randomly distributes particles within the box.
 
-Temperature T is in Kelvin (defaults to 300K).
+Temperature T is in Kelvin (defaults to 310.15K = 37°C body temperature, matching Cahill's Fortran code).
 """
-function MCState(charges::Vector, L; T::AbstractFloat=300.0)
+function MCState(charges::Vector, L; T::AbstractFloat=310.15)
     N = length(charges)
     # Initialize random positions within box
     positions = L .* rand(N, 3)' # scale random positions by scalar L; or by (X,Y,Z) tuple 
@@ -46,7 +46,7 @@ end
 
 #  Nature of the loop in the global energy function suggests this should be fine. 
 #     (Classical physics baby!)
-function calc_perion_energy(S::MCState, i::Int; cutoff=5nm, CORRELATION=true, ELECTROSTATIC=false, SELF_INTERACTION=true, m::CahillMembrane=CAHILL_LIVER)
+function calc_perion_energy(S::MCState, i::Int; cutoff=5nm, CORRELATION=true, ELECTROSTATIC=true, SELF_INTERACTION=true, m::CahillMembrane=CAHILL_LIVER)
     E = 0.0 # energy units of eV implicit everywhere
    
     qi=S.charges[i] # to multiply by all the calculation potentials V
@@ -54,32 +54,68 @@ function calc_perion_energy(S::MCState, i::Int; cutoff=5nm, CORRELATION=true, EL
 
 if CORRELATION 
     # Screened Coulomb interaction, mediated by the image charges induced in the membrane, between all pairs of ions, via Eqn 9
+    # Hard-core potential parameters (Fortran kcl.f90 line 119: prevents K-Cl pairs from getting unphysically close)
+    # KClsep = 0.236 nm minimum separation, hardcore ~ r^-12 repulsion
+    KClsep = 0.236nm
+    # Pre-factor for hard-core: in Fortran this is elec*KClsep^11/(12*4*pi*eps0*epsw)
+    # We work in eV units, so: 
+    hardCoreV_prefactor = (q * KClsep^11) / (12.0 * 4.0 * π * ε_0 * 80)    
+
     r_diff=Vector{Float64}(undef,3) # preallocate for loop
     for j in 1:S.N
-        if i==j # avoid self-interaction
-            continue
-        end 
-
         qj=S.charges[j]
-
-        # Include central cell and nearest neighbors in x,y; naive approach therefore gives a 9x slowdown
+        
+        # Include central cell and nearest neighbors in x,y (9 boxes total: Fortran shift1, shift2 = -1,0,1)
         for dx in (-1,0,1), dy in (-1,0,1)
+            # Skip self-interaction in central cell only (not in periodic images)
+            if i==j && dx==0 && dy==0
+                continue
+            end
+            
             # Offset positions by lattice vectors
             r_diff[1] = S.positions[1,i] - (S.positions[1,j] + dx*S.L[1])
             r_diff[2] = S.positions[2,i] - (S.positions[2,j] + dy*S.L[2])
+            r_diff[3] = z - S.positions[3,j]
 
             ρ=sqrt(r_diff[1]^2 + r_diff[2]^2) # distance in plane
-            #  implement a cutoff...
-            if ρ > cutoff
+                            
+            full_rsq = r_diff[1]^2 + r_diff[2]^2 + r_diff[3]^2
+            if sqrt(full_rsq) > cutoff 
+#               cutoff to reduce cost... but weird
+#               artefacts due to the induced field? perhaps we should just restrict
+#               to X,Y as before? 
                 continue
             end
-
+            
+            # Safety check: skip unphysically close interactions (likely initialization artifact)
+            # If ions are closer than KClsep/2, skip to prevent numerical blow-up in V
+            if full_rsq < (KClsep / 2.0)^2
+                continue
+            end
+            
             h=S.positions[3,j] # vertical position of jth ion
+            
             #   What would Cahill do? (WWCD?)
             #   "I went toward you, endlessly toward the light"
-            # Potential from image charges generated in membrane by the charge at r_diff
-            E+= qi * qj * V(z,WaterRegion(),WaterRegion(), ρ=ρ, t=m.t, h=h, m=m, NMAX=10) 
-                # Uhm, are the units correct here? 
+ 
+            # _Potential_ from image charges generated in membrane by the charge at r_diff
+            V_elec = V(z,WaterRegion(),WaterRegion(), ρ=ρ, t=m.t, h=h, m=m, NMAX=10)
+            # This is definitely in Volts, as all the figures reproduce. 
+            
+            # Add hard-core repulsion for opposite-charge pairs (K-Cl)
+            # Fortran kcl.f90 lines 194, 261: EKCl = EKCl + elec*(Volt + hardCoreV/rsq**6)
+            if qi * qj < 0  # Opposite charges
+                # Safety check: prevent numerical blow-up if ions are unphysically close
+                # Cap rsq at KClsep^2 to ensure hard-core is large but finite
+                # This prevents blow-up while still giving strong repulsion for close ions
+                rsq_min = KClsep^2
+                rsq = max(full_rsq, rsq_min)
+                # Hard-core contribution: V_hc = prefactor / r^12 (in Volts)
+                V_hardcore = hardCoreV_prefactor / (rsq^6)
+                E += qi * qj * (V_elec + V_hardcore) # q is (-1,+1) , so unitwise still eV
+            else
+                E += qi * qj * V_elec
+            end
         end
     end
 end
@@ -112,12 +148,18 @@ function mc_sweep!(S::MCState; δr=0.5nm, GLOBAL_ENERGY=false, m::CahillMembrane
         # Trial move - randn displacement
         S.positions[:,i] += δr * randn(3)
         
-        # Hard wall in Z; stop ions from penetrating membrane / leaving 10 nm box (magic number, FIXME)
-        # Do this by REJECTING the move if it's outside the box; setting to 0 or 10 nm seemed to introduce artefacts 
-        if S.positions[3,i] < 0.0 || S.positions[3,i] > 10.0nm
-            S.positions[:,i] = r_prev
-            continue
-        end
+        # Now follow the Fortran code to use reflection in Z; 
+        # stop ions from penetrating membrane / leaving 10 nm box (magic number, FIXME)
+        # Fortran code (kcl.f90 lines 237-242):
+        #       if z > height: z = 2*height - z 
+        #       if z < 0: z = -z
+       if S.positions[3,i] < 0.0 
+        S.positions[3,i] = -S.positions[3,i]
+       end
+        
+       if S.positions[3,i] > 10.0nm
+        S.positions[3,i] = 2* 10.0nm - S.positions[3,i]
+       end
 
         # PBCs in X and Y; project back into box
         S.positions[1,i] = mod(S.positions[1,i], S.L[1])
