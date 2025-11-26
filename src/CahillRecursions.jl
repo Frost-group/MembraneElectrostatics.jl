@@ -38,7 +38,7 @@ const CAHILL_LIVER = CahillMembrane()
 
 # Charge in water
 # V^w_w, Eqn 9 in Cahill2012
-function V(z, charge::WaterRegion, eval::WaterRegion; ρ, t, h, m::CahillMembrane, NMAX=1000)
+@fastmath function V(z, charge::WaterRegion, eval::WaterRegion; ρ, t, h, m::CahillMembrane, NMAX=1000)
     if ρ ≈ 0
         return V_w_w_selfinteraction(z, charge, eval; t=t, m=m, NMAX=NMAX)
     end
