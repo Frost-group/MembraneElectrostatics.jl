@@ -4,7 +4,6 @@ Transfer Matrix Method for N-Layer Dielectric Systems
 Implements the transfer matrix formalism from:
 Cahill, K. (2012). Models of membrane electrostatics. Physical Review E, 85(5), 051921.
 Section VIII "Several Dielectric Layers" 
-
 Arxiv https://arxiv.org/abs/1101.4265 'Tex Source' - qbiopre.tex lines 1584-1774
 
 This module provides automatic computation of electrostatic potentials for arbitrary

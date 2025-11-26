@@ -46,7 +46,7 @@ end
 
 #  Nature of the loop in the global energy function suggests this should be fine. 
 #     (Classical physics baby!)
-function calc_perion_energy(S::MCState, i::Int; cutoff=5nm, CORRELATION=true, ELECTROSTATIC=true, SELF_INTERACTION=true, m::CahillMembrane=CAHILL_LIVER)
+function calc_perion_energy(S::MCState, i::Int; cutoff=Inf, CORRELATION=true, ELECTROSTATIC=true, SELF_INTERACTION=true, m::CahillMembrane=CAHILL_LIVER)
     E = 0.0 # energy units of eV implicit everywhere
    
     qi=S.charges[i] # to multiply by all the calculation potentials V
@@ -84,6 +84,7 @@ if CORRELATION
 #               cutoff to reduce cost... but weird
 #               artefacts due to the induced field? perhaps we should just restrict
 #               to X,Y as before? 
+                # tests suggest this DOOES introduce massive artefacts, needs to have smooth (erf?) cutoffs applied
                 continue
             end
             

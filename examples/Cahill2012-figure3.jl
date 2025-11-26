@@ -27,15 +27,16 @@ membrane = CAHILL_LIVER
 
 
 # mini system, because of the O(N^2) cost of the explicit Coulomb pair sum #_#
-# ~3 mins on my macpro with 23k sweeps
+# ~3 mins (5nm cutoff) on my macpro with 23k sweeps
+# 30 mins (Inf cutoff) ^_^
 charges=vcat(+ones(90), -ones(85))
 box=(10nm,10nm,10nm)
 
 #charges=vcat(-ones(90), +ones(1))
 
-# midi system ~ 20 mins on my macpro wiht 23k sweeps
-charges=vcat(ones(90*4), -ones(85*4))
-box=(20nm,20nm,10nm)
+# midi system ~ 20 mins (5 nm cutoff) on my macpro wiht 23k sweeps
+#charges=vcat(ones(90*4), -ones(85*4))
+#box=(20nm,20nm,10nm)
 
 # Full system
 #charges = vcat(ones(2258), -ones(2115))
