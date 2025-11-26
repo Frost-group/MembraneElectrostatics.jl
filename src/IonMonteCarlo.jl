@@ -139,42 +139,42 @@ end
 
 function mc_sweep!(S::MCState; δr=0.5nm, GLOBAL_ENERGY=false, m::CahillMembrane=CAHILL_LIVER)
     ACCEPTED = 0 # One sweep = N attempted moves
+    height = S.L[3]
 
     for i in 1:S.N # should we shuffle?
-
+        r = @view S.positions[:, i]
+        
         # Store previous position and energy
-        r_prev = S.positions[:,i]
-        E_prev = GLOBAL_ENERGY ? calc_global_energy(S) : calc_perion_energy(S,i,m=m)
+        # tuple is stack-allocated, no heap allocation
+        r_prev = (r[1], r[2], r[3])
+        E_prev = GLOBAL_ENERGY ? calc_global_energy(S) : calc_perion_energy(S, i, m=m)
         
         # Trial move - randn displacement
-        S.positions[:,i] += δr * randn(3)
+        r[1] += δr * randn()
+        r[2] += δr * randn()
+        r[3] += δr * randn()
         
         # Now follow the Fortran code to use reflection in Z; 
-        # stop ions from penetrating membrane / leaving 10 nm box (magic number, FIXME)
+        # stop ions from penetrating membrane / leaving box
         # Fortran code (kcl.f90 lines 237-242):
         #       if z > height: z = 2*height - z 
         #       if z < 0: z = -z
-       if S.positions[3,i] < 0.0 
-        S.positions[3,i] = -S.positions[3,i]
-       end
-        
-       if S.positions[3,i] > 10.0nm
-        S.positions[3,i] = 2* 10.0nm - S.positions[3,i]
-       end
+        r[3] < 0 && (r[3] = -r[3])
+        r[3] > height && (r[3] = 2height - r[3])
 
         # PBCs in X and Y; project back into box
-        S.positions[1,i] = mod(S.positions[1,i], S.L[1])
-        S.positions[2,i] = mod(S.positions[2,i], S.L[2])
+        r[1] = mod(r[1], S.L[1])
+        r[2] = mod(r[2], S.L[2])
         
         # Calculate new energy
-        E_new = GLOBAL_ENERGY ? calc_global_energy(S) : calc_perion_energy(S,i,m=m)
+        E_new = GLOBAL_ENERGY ? calc_global_energy(S) : calc_perion_energy(S, i, m=m)
         
         # Metropolis acceptance criterion
         ΔE = E_new - E_prev
         if ΔE < 0 || rand() < exp(-S.β * ΔE)
             ACCEPTED += 1 # Accept move
         else # Reject move & restore state
-            S.positions[:,i] = r_prev
+            r[1], r[2], r[3] = r_prev
         end
 #        println("Energy: $E_new (ΔE = $ΔE)")
     end
